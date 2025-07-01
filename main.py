@@ -5,7 +5,7 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage,
     QuickReply, QuickReplyButton, MessageAction,
-    ImageSendMessage  # ← 已加入這一行
+    ImageSendMessage
 )
 
 app = Flask(__name__)
@@ -14,13 +14,9 @@ app = Flask(__name__)
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 
-# 確認金鑰是否存在
 if LINE_CHANNEL_ACCESS_TOKEN is None or LINE_CHANNEL_SECRET is None:
     print("請設定 LINE_CHANNEL_ACCESS_TOKEN 和 LINE_CHANNEL_SECRET 環境變數")
-    # 在本地測試時，如果沒有設定，可以先用下面的假資料，但部署時務必刪除或註解掉
-    # LINE_CHANNEL_ACCESS_TOKEN = "YOUR_CHANNEL_ACCESS_TOKEN"
-    # LINE_CHANNEL_SECRET = "YOUR_CHANNEL_SECRET"
-    # exit() # 部署時建議打開，如果抓不到金鑰就直接停止服務
+    # exit()  # 部署時建議打開
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
@@ -45,7 +41,7 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
-    user_message = event.message.text
+    user_message = event.message.text.strip()
     reply_token = event.reply_token
 
     # 首次進入遊戲
@@ -76,25 +72,30 @@ def handle_message(event):
             user_progress[user_id] = 2
             send_question_2(reply_token)
         else:
+            # 答錯，重送第一題
             line_bot_api.reply_message(reply_token, TextSendMessage(text="答錯囉～再試試看！"))
+            send_question_1(reply_token)
     elif progress == 2:
         if user_message == "C":
             user_progress[user_id] = 3
             send_question_3(reply_token)
         else:
             line_bot_api.reply_message(reply_token, TextSendMessage(text="錯誤答案！重來看看～"))
+            send_question_2(reply_token)
     elif progress == 3:
         if user_message == "B":
             user_progress[user_id] = 4
             send_question_4(reply_token)
         else:
             line_bot_api.reply_message(reply_token, TextSendMessage(text="這不是正確答案喔～再試一次！"))
+            send_question_3(reply_token)
     elif progress == 4:
         if user_message == "B":
             line_bot_api.reply_message(reply_token, TextSendMessage(text="🎉 恭喜你全部答對！你完成了通關～🎊"))
             user_progress[user_id] = 0  # 重置遊戲
         else:
             line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
+            send_question_4(reply_token)
     else:
         line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入『選單』來開始遊戲。"))
 
@@ -102,8 +103,8 @@ def handle_message(event):
 
 def send_question_1(reply_token):
     image = ImageSendMessage(
-        original_content_url="https://i.imgur.com/qyCxLdo.jpg",
-        preview_image_url="https://i.imgur.com/qyCxLdo.jpg"
+        original_content_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true",
+        preview_image_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true"
     )
     question = TextSendMessage(
         text="第一題：誰是飛天小女警的角色？",
@@ -117,8 +118,8 @@ def send_question_1(reply_token):
 
 def send_question_2(reply_token):
     image = ImageSendMessage(
-        original_content_url="https://i.imgur.com/V8F8j7x.png",
-        preview_image_url="https://i.imgur.com/V8F8j7x.png"
+        original_content_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true",
+        preview_image_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true"
     )
     question = TextSendMessage(
         text="第二題：一次函數 y＝－2x－6 通過哪個點？",
