@@ -8,8 +8,8 @@ app = Flask(__name__)
 
 # 從環境變數中取得金鑰
 # 部署到 Render 時，我們會把金鑰設定在環境變數中，而不是寫死在程式碼裡
-LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('Chij1UUyiV9prubdtBD9ijK2LZzAJN2LTjSVP8ldxZGG484Ft0V99Edy41HIETElsCpRV5m5eY+HOAjj770r3W LjtBc3y6Yywi9ke5oavMMTBFPlUyuorobr6mF4d/slO33PxoQk0F3g9HOfhfHrqQdB04t89/1O/w1cDnyilFU=')
-LINE_CHANNEL_SECRET = os.environ.get('e237d7487051810e433352655d6dd1ca')
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
+LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 
 # 確認金鑰是否存在
 if LINE_CHANNEL_ACCESS_TOKEN is None or LINE_CHANNEL_SECRET is None:
