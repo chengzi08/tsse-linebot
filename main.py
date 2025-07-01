@@ -4,8 +4,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage,
-    QuickReply, QuickReplyButton, MessageAction,
-    ImageSendMessage
+    FlexSendMessage
 )
 
 app = Flask(__name__)
@@ -46,15 +45,36 @@ def handle_message(event):
 
     # 首次進入遊戲
     if user_message == "選單":
-        start_action = MessageAction(label="開始遊戲", text="開始遊戲")
-        quick_reply_buttons = QuickReply(items=[
-            QuickReplyButton(action=start_action)
-        ])
-        message = TextSendMessage(
-            text="歡迎來到問答遊戲，請點選開始！",
-            quick_reply=quick_reply_buttons
+        flex_menu = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "歡迎來到問答遊戲，請點選開始！",
+                        "weight": "bold",
+                        "size": "md",
+                        "margin": "md"
+                    },
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "color": "#6EC1E4",
+                        "action": {
+                            "type": "message",
+                            "label": "開始遊戲",
+                            "text": "開始遊戲"
+                        }
+                    }
+                ]
+            }
+        }
+        line_bot_api.reply_message(
+            reply_token,
+            FlexSendMessage(alt_text="歡迎來到問答遊戲，請點選開始！", contents=flex_menu)
         )
-        line_bot_api.reply_message(reply_token, message)
         return
 
     # 開始遊戲
@@ -72,7 +92,6 @@ def handle_message(event):
             user_progress[user_id] = 2
             send_question_2(reply_token)
         else:
-            # 答錯，重送第一題
             line_bot_api.reply_message(reply_token, TextSendMessage(text="答錯囉～再試試看！"))
             send_question_1(reply_token)
     elif progress == 2:
@@ -99,62 +118,292 @@ def handle_message(event):
     else:
         line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入『選單』來開始遊戲。"))
 
-# ====== 每一題的題目函數（可加圖片）======
+# ====== 每一題的 Flex Message 按鈕題目 ======
 
 def send_question_1(reply_token):
-    image = ImageSendMessage(
-        original_content_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true",
-        preview_image_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true"
+    flex_message = {
+        "type": "bubble",
+        "hero": {
+            "type": "image",
+            "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true",
+            "size": "full",
+            "aspectRatio": "1.51:1",
+            "aspectMode": "fit"
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "第一題：誰是飛天小女警的角色？",
+                    "weight": "bold",
+                    "size": "md",
+                    "margin": "md"
+                },
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#6EC1E4",
+                            "action": {
+                                "type": "message",
+                                "label": "A 泡泡",
+                                "text": "A"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#A3D977",
+                            "action": {
+                                "type": "message",
+                                "label": "B 豆豆",
+                                "text": "B"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#F7B2B7",
+                            "action": {
+                                "type": "message",
+                                "label": "C 毛毛",
+                                "text": "C"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    line_bot_api.reply_message(
+        reply_token,
+        FlexSendMessage(alt_text="第一題", contents=flex_message)
     )
-    question = TextSendMessage(
-        text="第一題：誰是飛天小女警的角色？",
-        quick_reply=QuickReply(items=[
-            QuickReplyButton(action=MessageAction(label="A 泡泡", text="A")),
-            QuickReplyButton(action=MessageAction(label="B 豆豆", text="B")),
-            QuickReplyButton(action=MessageAction(label="C 毛毛", text="C")),
-        ])
-    )
-    line_bot_api.reply_message(reply_token, [image, question])
 
 def send_question_2(reply_token):
-    image = ImageSendMessage(
-        original_content_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true",
-        preview_image_url="https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true"
+    flex_message = {
+        "type": "bubble",
+        "hero": {
+            "type": "image",
+            "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true",
+            "size": "full",
+            "aspectRatio": "1.51:1",
+            "aspectMode": "fit"
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "第二題：一次函數 y＝－2x－6 通過哪個點？",
+                    "weight": "bold",
+                    "size": "md",
+                    "margin": "md"
+                },
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#6EC1E4",
+                            "action": {
+                                "type": "message",
+                                "label": "A (-4, 1)",
+                                "text": "A"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#A3D977",
+                            "action": {
+                                "type": "message",
+                                "label": "B (-4, 2)",
+                                "text": "B"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#F7B2B7",
+                            "action": {
+                                "type": "message",
+                                "label": "C (-4, -1)",
+                                "text": "C"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#FFD966",
+                            "action": {
+                                "type": "message",
+                                "label": "D (-4, -2)",
+                                "text": "D"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    line_bot_api.reply_message(
+        reply_token,
+        FlexSendMessage(alt_text="第二題", contents=flex_message)
     )
-    question = TextSendMessage(
-        text="第二題：一次函數 y＝－2x－6 通過哪個點？",
-        quick_reply=QuickReply(items=[
-            QuickReplyButton(action=MessageAction(label="A (-4, 1)", text="A")),
-            QuickReplyButton(action=MessageAction(label="B (-4, 2)", text="B")),
-            QuickReplyButton(action=MessageAction(label="C (-4, -1)", text="C")),
-            QuickReplyButton(action=MessageAction(label="D (-4, -2)", text="D")),
-        ])
-    )
-    line_bot_api.reply_message(reply_token, [image, question])
 
 def send_question_3(reply_token):
-    question = TextSendMessage(
-        text="第三題：多少個正整數是 18 的倍數，也是 216 的因數？",
-        quick_reply=QuickReply(items=[
-            QuickReplyButton(action=MessageAction(label="A 2", text="A")),
-            QuickReplyButton(action=MessageAction(label="B 6", text="B")),
-            QuickReplyButton(action=MessageAction(label="C 10", text="C")),
-            QuickReplyButton(action=MessageAction(label="D 12", text="D")),
-        ])
+    flex_message = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "第三題：多少個正整數是 18 的倍數，也是 216 的因數？",
+                    "weight": "bold",
+                    "size": "md",
+                    "margin": "md"
+                },
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#6EC1E4",
+                            "action": {
+                                "type": "message",
+                                "label": "A 2",
+                                "text": "A"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#A3D977",
+                            "action": {
+                                "type": "message",
+                                "label": "B 6",
+                                "text": "B"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#F7B2B7",
+                            "action": {
+                                "type": "message",
+                                "label": "C 10",
+                                "text": "C"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#FFD966",
+                            "action": {
+                                "type": "message",
+                                "label": "D 12",
+                                "text": "D"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    line_bot_api.reply_message(
+        reply_token,
+        FlexSendMessage(alt_text="第三題", contents=flex_message)
     )
-    line_bot_api.reply_message(reply_token, question)
 
 def send_question_4(reply_token):
-    question = TextSendMessage(
-        text="第四題：一份套餐比單點雞排+可樂便宜40元，\n單點雞排送一片+兩杯可樂，比兩份套餐便宜10元。根據敘述，哪個為正確結論？",
-        quick_reply=QuickReply(items=[
-            QuickReplyButton(action=MessageAction(label="A 套餐140", text="A")),
-            QuickReplyButton(action=MessageAction(label="B 套餐120", text="B")),
-            QuickReplyButton(action=MessageAction(label="C 雞排90", text="C")),
-            QuickReplyButton(action=MessageAction(label="D 雞排70", text="D")),
-        ])
+    flex_message = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "第四題：一份套餐比單點雞排+可樂便宜40元，\n單點雞排送一片+兩杯可樂，比兩份套餐便宜10元。\n根據敘述，哪個為正確結論？",
+                    "weight": "bold",
+                    "size": "md",
+                    "margin": "md",
+                    "wrap": True
+                },
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#6EC1E4",
+                            "action": {
+                                "type": "message",
+                                "label": "A 套餐140",
+                                "text": "A"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#A3D977",
+                            "action": {
+                                "type": "message",
+                                "label": "B 套餐120",
+                                "text": "B"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#F7B2B7",
+                            "action": {
+                                "type": "message",
+                                "label": "C 雞排90",
+                                "text": "C"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": "#FFD966",
+                            "action": {
+                                "type": "message",
+                                "label": "D 雞排70",
+                                "text": "D"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    line_bot_api.reply_message(
+        reply_token,
+        FlexSendMessage(alt_text="第四題", contents=flex_message)
     )
-    line_bot_api.reply_message(reply_token, question)
 
 # ====== 本地測試啟動 Flask 應用程式 ======
 if __name__ == "__main__":
