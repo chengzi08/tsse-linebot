@@ -24,7 +24,6 @@ if not all([LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET, GOOGLE_SHEET_NAME]):
 
 # ====== Google Sheets API 初始化 ======
 try:
-    # 在 Render 上，Secret File 的路徑會是 /etc/secrets/google_credentials.json
     SERVICE_ACCOUNT_FILE = '/etc/secrets/google_credentials.json'
     gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
     sh = gc.open(GOOGLE_SHEET_NAME)
@@ -32,43 +31,64 @@ try:
     print("成功連接 Google Sheet")
 except Exception as e:
     print(f"Google Sheet 連接失敗: {e}")
-    worksheet = None # 如果連接失敗，將 worksheet 設為 None
+    worksheet = None
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# ====== 使用者狀態記錄（正式建議改為資料庫）======
-user_states = {}  # 結構: {user_id: {'progress': int, 'name': str, 'player_id': int, 'start_time': datetime}}
-player_counter = 0 # 玩家編號計數器 (伺服器重啟會歸零，正式環境應從資料庫讀取最大值)
+# ====== 使用者狀態記錄 ======
+user_states = {}
+player_counter = 0
 
-# ====== 寫入 Google Sheet 的函式 ======
+# ====================================================================
+# ====== ★★★ 修改後的寫入函式 ★★★ ======
+# ====================================================================
 def record_completion(user_id):
+    """
+    紀錄玩家通關資訊。
+    - 檢查玩家是否已存在。
+    - 若不存在，寫入新紀錄並回傳 True。
+    - 若已存在，不寫入並回傳 False。
+    """
     if not worksheet:
         print("Worksheet 未初始化，無法寫入紀錄。")
-        return
+        return None
 
     state = user_states.get(user_id, {})
     if not state or not all(k in state for k in ['name', 'player_id', 'start_time']):
         print(f"使用者 {user_id} 狀態不完整，無法紀錄。")
-        return
+        return None
 
-    tpe_timezone = pytz.timezone('Asia/Taipei')
-    completion_time = datetime.datetime.now(tpe_timezone)
-    start_time = state['start_time']
-    duration = completion_time - start_time
-    duration_seconds = round(duration.total_seconds(), 2)
-    completion_time_str = completion_time.strftime("%Y-%m-%d %H:%M:%S")
-    player_id = state['player_id']
-    name = state['name']
-    
-    row_to_insert = [player_id, name, completion_time_str, duration_seconds]
-    
     try:
-        # 在第一列標頭後插入新的一列紀錄
+        # 讀取第五欄 (E欄) 的所有 LINE User ID
+        existing_ids = worksheet.col_values(5)
+        
+        # 檢查目前 user_id 是否已存在
+        if user_id in existing_ids:
+            print(f"使用者 {user_id} 已有紀錄，跳過寫入。")
+            return False # 回傳 False 代表是重複遊玩
+
+        # --- 若為新玩家，執行以下寫入動作 ---
+        tpe_timezone = pytz.timezone('Asia/Taipei')
+        completion_time = datetime.datetime.now(tpe_timezone)
+        start_time = state['start_time']
+        duration = completion_time - start_time
+        duration_seconds = round(duration.total_seconds(), 2)
+        completion_time_str = completion_time.strftime("%Y-%m-%d %H:%M:%S")
+        player_id = state['player_id']
+        name = state['name']
+        
+        # 新增 LINE User ID 到要寫入的列
+        row_to_insert = [player_id, name, completion_time_str, duration_seconds, user_id]
+        
         worksheet.insert_row(row_to_insert, 2)
-        print(f"成功寫入紀錄到 Google Sheet: {row_to_insert}")
+        print(f"成功寫入新紀錄到 Google Sheet: {row_to_insert}")
+        return True # 回傳 True 代表是首次通關
+
     except Exception as e:
-        print(f"寫入 Google Sheet 失敗: {e}")
+        print(f"讀取或寫入 Google Sheet 時發生錯誤: {e}")
+        return None
+
 
 # ====== Webhook 入口 ======
 @app.route("/callback", methods=['POST'])
@@ -126,7 +146,7 @@ def handle_message(event):
         line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
 
-    # ====== 遊戲邏輯（如果上面關鍵字沒對中，才會執行這裡）======
+    # ====== 遊戲邏輯 ======
     state = user_states.setdefault(user_id, {'progress': 0})
     progress = state.get('progress', 0)
 
@@ -168,8 +188,22 @@ def handle_message(event):
             line_bot_api.push_message(user_id, TextSendMessage(text="這不是正確答案喔～再試一次！"))
     elif progress == 4:
         if user_message == "B":
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="🎉 恭喜你全部答對！你完成了通關～🎊\n正在為您記錄成績..."))
-            record_completion(user_id)
+            # ★★★ 修改後的通關邏輯 ★★★
+            is_first_completion = record_completion(user_id)
+            
+            if is_first_completion is True:
+                # 首次通關
+                reply_message_text = "🎉 恭喜你全部答對！你完成了通關～🎊\n您的成績已成功記錄！"
+            elif is_first_completion is False:
+                # 重複遊玩
+                reply_message_text = "感謝您的再次挑戰！我們已保留您首次通關的最佳紀錄。👍"
+            else:
+                # 紀錄失敗
+                reply_message_text = "恭喜通關！不過在記錄成績時發生了一點問題，請聯繫管理員。"
+            
+            line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_message_text))
+
+            # 重置遊戲狀態
             if user_id in user_states:
                 del user_states[user_id]
         else:
@@ -178,24 +212,21 @@ def handle_message(event):
     elif progress == 0:
         line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入「開始遊戲」來進行挑戰。"))
 
-# ====== 每一題的 Flex Message 按鈕題目 (方法改為 push) ======
+
+# ====== 每一題的 Flex Message (內容不變) ======
 def send_question_1(user_id):
-    # (此處的 flex_message 內容與您原先的相同，故省略以節省篇幅)
     flex_message = { "type": "bubble", "hero": {"type": "image", "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第一題：誰是飛天小女警的角色？", "weight": "bold", "size": "md", "margin": "md"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 泡泡", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 豆豆", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 毛毛", "text": "C"}}]}]}}
     line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第一題", contents=flex_message))
 
 def send_question_2(user_id):
-    # (此處的 flex_message 內容與您原先的相同，故省略以節省篇幅)
     flex_message = { "type": "bubble", "hero": {"type": "image", "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第二題：一次函數 y＝－2x－6 通過哪個點？", "weight": "bold", "size": "md", "margin": "md"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A (-4, 1)", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B (-4, 2)", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C (-4, -2)", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D (-4, -1)", "text": "D"}}]}]}}
     line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第二題", contents=flex_message))
 
 def send_question_3(user_id):
-    # (此處的 flex_message 內容與您原先的相同，故省略以節省篇幅)
     flex_message = { "type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第三題：多少個正整數是 18 的倍數，也是 216 的因數？", "weight": "bold", "size": "md", "margin": "md"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 2", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 6", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 10", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D 12", "text": "D"}}]}]}}
     line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第三題", contents=flex_message))
 
 def send_question_4(user_id):
-    # (此處的 flex_message 內容與您原先的相同，故省略以節省篇幅)
     flex_message = { "type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第四題：一份套餐比單點雞排+可樂便宜40元，\n單點雞排送一片+兩杯可樂，比兩份套餐便宜10元。\n根據敘述，哪個為正確結論？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 套餐140", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 套餐120", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 雞排90", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D 雞排70", "text": "D"}}]}]}}
     line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第四題", contents=flex_message))
 
