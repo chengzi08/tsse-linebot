@@ -11,9 +11,7 @@ from linebot.models import (
 )
 
 import gspread
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-# ★ 這行已經被完全刪除，因為 CellNotFound 不再存在 ★
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+from gspread import CellNotFound
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 
@@ -92,7 +90,7 @@ def record_completion(user_id, image_url=None):
         print(f"寫入 Google Sheet 時發生錯誤: {e}")
         return None
 
-# ====== ★★★★★★★★★★★★★ 核心函式：兌換獎品 (已修正) ★★★★★★★★★★★★★ ======
+# ====== ★★★★★★★★★★★★★ 核心函式：兌換獎品 ★★★★★★★★★★★★★ ======
 def redeem_prize(user_id):
     """處理兌獎邏輯。回傳: 'success', 'already_redeemed', 'not_found'"""
     if not worksheet: return None
@@ -137,6 +135,29 @@ def handle_message(event):
     state = user_states.setdefault(user_id, {'progress': 0})
     progress = state.get('progress', 0)
     
+     # ★ 新增：一個萬能重置指令，避免使用者卡關
+    if user_message in ["重置", "主選單"]:
+        if user_id in user_states:
+            del user_states[user_id] # 清除卡住的狀態
+        line_bot_api.reply_message(reply_token, TextSendMessage(text="已重置，請輸入「開始遊戲」重新開始。"))
+        return
+ # ★ 恢復：通用關鍵字判斷，並給予最高優先級
+    if user_message == "週末限定活動報名":
+        flex_link_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "週末限定活動", "weight": "bold", "size": "xl"}, {"type": "text", "text": "名額有限，請點擊下方按鈕立即報名！", "margin": "md", "wrap": True}, {"type": "separator", "margin": "xxl"}, {"type": "button", "style": "primary", "color": "#905c44", "margin": "xl", "height": "sm", "action": {"type": "uri", "label": "點我前往報名", "uri": "https://docs.google.com/forms/d/e/1FAIpQLSc28lR_7rCNwy7JShQBS9ags6DL0NinKXIUIDJ4dv6YwAIzuA/viewform?usp=dialog"}}]}}
+        line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
+        return
+
+    elif user_message == "平日常態活動":
+        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true"
+        line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
+        return
+        
+    elif user_message == "活動介紹":
+        reply_text = "活動介紹還沒好再等等啦\n" * 8
+        line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
+        return
+        
+    # ★ 3. 將「開始遊戲」的判斷條件改回只在初始狀態觸發
     if user_message == "開始遊戲" and progress == 0:
         send_start_menu(reply_token)
         return
@@ -190,8 +211,8 @@ def handle_message(event):
         if user_message == "B": state['progress'] = 5; send_question_5(user_id)
         else: line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
             
-    elif progress == 0:
-        line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入「開始遊戲」來選擇下一步動作。"))
+     elif progress == 0:
+        line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入「開始遊戲」來選擇下一步動作，或輸入「重置」來清除卡關狀態。"))
 
 # ====== 處理圖片訊息 (不變) ======
 @handler.add(MessageEvent, message=ImageMessage)
@@ -233,12 +254,27 @@ def handle_image_message(event):
 
 # ====== 題目與選單函式 (不變) ======
 def send_start_menu(reply_token):
-    #... (內容省略)
-    pass
+    flex_message = FlexSendMessage(alt_text='開始選單', contents={"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "歡迎！", "weight": "bold", "size": "xl"}, {"type": "text", "text": "請選擇您的下一步動作：", "margin": "md"}, {"type": "button", "action": {"type": "message", "label": "進入遊戲", "text": "進入遊戲"}, "style": "primary", "color": "#5A94C7", "margin": "xxl"}, {"type": "button", "action": {"type": "message", "label": "兌換獎項", "text": "兌換獎項"}, "style": "secondary", "margin": "md"}]}})
+    line_bot_api.reply_message(reply_token, flex_message)
+
 def send_question_1(user_id):
-    #... (內容省略)
-    pass
-#... (其他 send_question 函式內容省略)
+    flex_message = { "type": "bubble", "hero": {"type": "image", "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第一題：誰是飛天小女警的角色？", "weight": "bold", "size": "md", "margin": "md"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 泡泡", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 豆豆", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 毛毛", "text": "C"}}]}]}}
+    line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第一題", contents=flex_message))
+
+def send_question_2(user_id):
+    flex_message = {"type": "bubble", "hero": {"type": "image", "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第二題：一次函數 y＝－2x－6 通過哪個點？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A (-4, 1)", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B (-4, 2)", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C (-4, -2)", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D (-4, -1)", "text": "D"}}]}]}}
+    line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第二題", contents=flex_message))
+
+def send_question_3(user_id):
+    flex_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第三題：多少個正整數是 18 的倍數，也是 216 的因數？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 2", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 6", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 10", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D 12", "text": "D"}}]}]}}
+    line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第三題", contents=flex_message))
+
+def send_question_4(user_id):
+    flex_message = { "type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第四題：一份套餐比單點雞排+可樂便宜40元，\n單點雞排送一片+兩杯可樂，比兩份套餐便宜10元。\n根據敘述，哪個為正確結論？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 套餐140", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 套餐120", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 雞排90", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D 雞排70", "text": "D"}}]}]}}
+    line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第四題", contents=flex_message))
+
+def send_question_5(user_id):
+    line_bot_api.push_message(user_id, TextSendMessage(text="太棒了！這是最後一關：\n\n請上傳一張你最喜歡的照片，完成最後的挑戰！"))
 
 # ====== 啟動 ======
 if __name__ == "__main__":
