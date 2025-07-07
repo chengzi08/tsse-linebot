@@ -27,8 +27,9 @@ SERVICE_ACCOUNT_FILE = '/etc/secrets/google_credentials.json'
 if not all([LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET, GOOGLE_SHEET_NAME, GOOGLE_DRIVE_FOLDER_ID]):
     print("警告：請確認所有環境變數 (LINE..., GOOGLE_SHEET_NAME, GOOGLE_DRIVE_FOLDER_ID) 已設定。")
 
-# --- Google Sheets 初始化 ---
+# --- Google Sheets 和 Drive 初始化 (最終修正版) ---
 try:
+    # 1. gspread 獨立認證，這部分已知是成功的
     gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
     sh = gc.open(GOOGLE_SHEET_NAME)
     worksheet = sh.sheet1
@@ -37,28 +38,17 @@ except Exception as e:
     worksheet = None
     print(f"Google Sheet 連接失敗: {e}")
 
-# --- Google Drive 初始化 (已修正為最終版認證方法) ---
-# --- Google Sheets 和 Drive 初始化 (最終修正版) ---
 try:
-    # 1. 先用 gspread 成功認證，這一步我們已知是成功的
-    gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
-    sh = gc.open(GOOGLE_SHEET_NAME)
-    worksheet = sh.sheet1
-    print("成功連接 Google Sheet")
-
-    # 2. 建立一個空的 PyDrive2 認證物件
+    # 2. PyDrive2 也使用同一個金鑰檔案進行獨立認證
     gauth = GoogleAuth()
-    # 3. ★ 關鍵：直接將 gspread 的認證成果 (gc.auth) 交給 gauth 使用
-    gauth.credentials = gc.auth
-    
-    # 4. 用這個已經被賦予認證的 gauth 來建立 Drive 物件
+    # ★ 關鍵修改：直接呼叫 ServiceAuth()，它會自動讀取 settings.yaml 或 client_secrets.json
+    # 但在 Render 環境中，我們需要更明確的指定
+    gauth.ServiceAuth(SERVICE_ACCOUNT_FILE)
     drive = GoogleDrive(gauth)
     print("成功初始化 Google Drive Client")
-
 except Exception as e:
-    worksheet = None
     drive = None
-    print(f"Google 服務初始化失敗: {e}")
+    print(f"Google Drive Client 初始化失敗: {e}")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
