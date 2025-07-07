@@ -17,7 +17,7 @@ from pydrive2.drive import GoogleDrive
 
 app = Flask(__name__)
 
-# ====== 環境變數與 API 初始化 (省略部分 print) ======
+# ====== 環境變數與 API 初始化 ======
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 GOOGLE_SHEET_NAME = os.environ.get('GOOGLE_SHEET_NAME')
@@ -51,13 +51,13 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # ====== 使用者狀態記錄 ======
 user_states = {}
 
-# ====== 核心函式：取得玩家資訊 (不變) ======
+# ====== 核心函式：取得玩家資訊 ======
 def get_player_info(user_id):
     if not worksheet: return None
     try:
-        cells = worksheet.findall(user_id, in_column=5) # E欄是 LINE User ID
+        cells = worksheet.findall(user_id, in_column=5)
         if not cells:
-            all_player_ids = worksheet.col_values(9)[1:] # 讀取I欄 (玩家永久編號)
+            all_player_ids = worksheet.col_values(9)[1:]
             all_player_ids_int = [int(i) for i in all_player_ids if i and i.isdigit()]
             new_id = max(all_player_ids_int) + 1 if all_player_ids_int else 1
             return {'id': new_id, 'play_count': 1, 'is_new': True}
@@ -72,7 +72,7 @@ def get_player_info(user_id):
         print(f"獲取玩家資訊時出錯: {e}")
         return None
 
-# ====== 核心函式：寫入紀錄 (不變) ======
+# ====== 核心函式：寫入紀錄 ======
 def record_completion(user_id, image_url=None):
     if not worksheet: return None
     state = user_states.get(user_id, {})
@@ -90,43 +90,31 @@ def record_completion(user_id, image_url=None):
         print(f"寫入 Google Sheet 時發生錯誤: {e}")
         return None
 
-# ====== ★★★★★★★★★★★★★ 核心函式：兌換獎品 ★★★★★★★★★★★★★ ======
+# ====== 核心函式：兌換獎品 ======
 def redeem_prize(user_id):
-    """處理兌獎邏輯。回傳: 'success', 'already_redeemed', 'not_found'"""
     if not worksheet: return None
     try:
-        # 尋找 E 欄中符合 user_id 的儲存格
-        cell = worksheet.find(user_id, in_column=5) # E欄是 LINE User ID
-
-        # ★ 關鍵修改：用 if not cell 判斷是否找到
-        if not cell:
-            # 如果找不到 user_id，代表玩家還沒通關
-            return 'not_found'
-
-        # 如果程式能走到這裡，代表 cell 找到了
-        redeem_status_cell = f'G{cell.row}' # G欄是是否已兌獎
-        if worksheet.acell(redeem_status_cell).value == '是':
-            return 'already_redeemed'
-        
-        # 更新 G 欄為 "是"
-        worksheet.update_acell(redeem_status_cell, '是')
+        cell = worksheet.find(user_id, in_column=5)
+        if not cell: return 'not_found'
+        if worksheet.acell(f'G{cell.row}').value == '是': return 'already_redeemed'
+        worksheet.update_acell(f'G{cell.row}', '是')
         return 'success'
-        
     except Exception as e:
-        # 捕捉其他可能的錯誤，例如網路問題
         print(f"兌獎時發生錯誤: {e}")
         return None
     
-# ====== Webhook 入口 (不變) ======
+# ====== Webhook 入口 ======
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
     body = request.get_data(as_text=True)
-    try: handler.handle(body, signature)
-    except InvalidSignatureError: abort(400)
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
     return 'OK'
 
-# ====== 處理文字訊息 (不變) ======
+# ====== 處理文字訊息 ======
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
@@ -135,13 +123,12 @@ def handle_message(event):
     state = user_states.setdefault(user_id, {'progress': 0})
     progress = state.get('progress', 0)
     
-     # ★ 新增：一個萬能重置指令，避免使用者卡關
     if user_message in ["重置", "主選單"]:
         if user_id in user_states:
-            del user_states[user_id] # 清除卡住的狀態
+            del user_states[user_id]
         line_bot_api.reply_message(reply_token, TextSendMessage(text="已重置，請輸入「開始遊戲」重新開始。"))
         return
- # ★ 恢復：通用關鍵字判斷，並給予最高優先級
+
     if user_message == "週末限定活動報名":
         flex_link_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "週末限定活動", "weight": "bold", "size": "xl"}, {"type": "text", "text": "名額有限，請點擊下方按鈕立即報名！", "margin": "md", "wrap": True}, {"type": "separator", "margin": "xxl"}, {"type": "button", "style": "primary", "color": "#905c44", "margin": "xl", "height": "sm", "action": {"type": "uri", "label": "點我前往報名", "uri": "https://docs.google.com/forms/d/e/1FAIpQLSc28lR_7rCNwy7JShQBS9ags6DL0NinKXIUIDJ4dv6YwAIzuA/viewform?usp=dialog"}}]}}
         line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
@@ -156,8 +143,7 @@ def handle_message(event):
         reply_text = "活動介紹還沒好再等等啦\n" * 8
         line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
-        
-    # ★ 3. 將「開始遊戲」的判斷條件改回只在初始狀態觸發
+
     if user_message == "開始遊戲" and progress == 0:
         send_start_menu(reply_token)
         return
@@ -175,10 +161,7 @@ def handle_message(event):
     if progress == -2:
         if user_message == "PASS":
             result = redeem_prize(user_id)
-            if result == 'success': reply_text = "獎項兌換成功！"
-            elif result == 'already_redeemed': reply_text = "您已兌換過獎品囉！"
-            elif result == 'not_found': reply_text = "您尚未完成遊戲挑戰，無法兌換獎品喔！"
-            else: reply_text = "兌換時發生錯誤，請聯繫管理員。"
+            reply_text = {'success': "獎項兌換成功！", 'already_redeemed': "您已兌換過獎品囉！", 'not_found': "您尚未完成遊戲挑戰，無法兌換獎品喔！"}.get(result, "兌換時發生錯誤，請聯繫管理員。")
             state['progress'] = 0
             line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text))
         else:
@@ -199,22 +182,34 @@ def handle_message(event):
         return
 
     if progress == 1:
-        if user_message == "A": state['progress'] = 2; send_question_2(user_id)
-        else: line_bot_api.push_message(user_id, TextSendMessage(text="答錯囉～再試試看！"))
+        if user_message == "A":
+            state['progress'] = 2
+            send_question_2(user_id)
+        else:
+            line_bot_api.push_message(user_id, TextSendMessage(text="答錯囉～再試試看！"))
     elif progress == 2:
-        if user_message == "C": state['progress'] = 3; send_question_3(user_id)
-        else: line_bot_api.push_message(user_id, TextSendMessage(text="錯誤答案！重來看看～"))
+        if user_message == "C":
+            state['progress'] = 3
+            send_question_3(user_id)
+        else:
+            line_bot_api.push_message(user_id, TextSendMessage(text="錯誤答案！重來看看～"))
     elif progress == 3:
-        if user_message == "B": state['progress'] = 4; send_question_4(user_id)
-        else: line_bot_api.push_message(user_id, TextSendMessage(text="這不是正確答案喔～再試一次！"))
+        if user_message == "B":
+            state['progress'] = 4
+            send_question_4(user_id)
+        else:
+            line_bot_api.push_message(user_id, TextSendMessage(text="這不是正確答案喔～再試一次！"))
     elif progress == 4:
-        if user_message == "B": state['progress'] = 5; send_question_5(user_id)
-        else: line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
+        if user_message == "B":
+            state['progress'] = 5
+            send_question_5(user_id)
+        else:
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
             
-     elif progress == 0:
+    elif progress == 0:
         line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入「開始遊戲」來選擇下一步動作，或輸入「重置」來清除卡關狀態。"))
 
-# ====== 處理圖片訊息 (不變) ======
+# ====== 處理圖片訊息 ======
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image_message(event):
     user_id = event.source.user_id
@@ -230,7 +225,8 @@ def handle_image_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="收到照片，正在上傳至雲端...✨"))
         message_content = line_bot_api.get_message_content(event.message.id)
         with open(temp_file_path, 'wb') as fd:
-            for chunk in message_content.iter_content(): fd.write(chunk)
+            for chunk in message_content.iter_content():
+                fd.write(chunk)
 
         drive_file = drive.CreateFile({'title': f'{user_id}-{event.message.id}.jpg', 'parents': [{'id': GOOGLE_DRIVE_FOLDER_ID}]})
         drive_file.SetContentFile(temp_file_path)
@@ -240,19 +236,24 @@ def handle_image_message(event):
 
         record_result = record_completion(user_id, image_url=image_url)
         if record_result:
-            if record_result['is_first']: final_message = "🎉 照片上傳成功，恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！"
-            else: final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！"
+            if record_result['is_first']:
+                final_message = "🎉 照片上傳成功，恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！"
+            else:
+                final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！"
         else:
             final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
+        
         line_bot_api.push_message(user_id, TextSendMessage(text=final_message))
     except Exception as e:
         print(f"圖片處理失敗: {e}")
         line_bot_api.push_message(user_id, TextSendMessage(text="啊！照片上傳失敗了...請再試一次。"))
     finally:
-        if os.path.exists(temp_file_path): os.remove(temp_file_path)
-        if user_id in user_states: del user_states[user_id]
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        if user_id in user_states:
+            del user_states[user_id]
 
-# ====== 題目與選單函式 (不變) ======
+# ====== 題目與選單函式 ======
 def send_start_menu(reply_token):
     flex_message = FlexSendMessage(alt_text='開始選單', contents={"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "歡迎！", "weight": "bold", "size": "xl"}, {"type": "text", "text": "請選擇您的下一步動作：", "margin": "md"}, {"type": "button", "action": {"type": "message", "label": "進入遊戲", "text": "進入遊戲"}, "style": "primary", "color": "#5A94C7", "margin": "xxl"}, {"type": "button", "action": {"type": "message", "label": "兌換獎項", "text": "兌換獎項"}, "style": "secondary", "margin": "md"}]}})
     line_bot_api.reply_message(reply_token, flex_message)
@@ -275,6 +276,7 @@ def send_question_4(user_id):
 
 def send_question_5(user_id):
     line_bot_api.push_message(user_id, TextSendMessage(text="太棒了！這是最後一關：\n\n請上傳一張你最喜歡的照片，完成最後的挑戰！"))
+
 
 # ====== 啟動 ======
 if __name__ == "__main__":
