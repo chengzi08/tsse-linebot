@@ -94,14 +94,26 @@ def record_completion(user_id, image_url=None):
 def redeem_prize(user_id):
     if not worksheet: return None
     try:
+        # 新寫法：find() 找不到時會回傳 None
         cell = worksheet.find(user_id, in_column=5)
-        if not cell: return 'not_found'
-        if worksheet.acell(f'G{cell.row}').value == '是': return 'already_redeemed'
+
+        # ★ 關鍵修改：用 if not cell 來判斷是否找到
+        if not cell:
+            return 'not_found'
+        
+        # 如果程式能走到這裡，代表 cell 找到了
+        # 後續邏輯不變
+        if worksheet.acell(f'G{cell.row}').value == '是':
+            return 'already_redeemed'
+        
         worksheet.update_acell(f'G{cell.row}', '是')
         return 'success'
+        
     except Exception as e:
+        # 保留這個 except 來捕捉其他可能的錯誤，例如網路問題
         print(f"兌獎時發生錯誤: {e}")
         return None
+
     
 # ====== Webhook 入口 ======
 @app.route("/callback", methods=['POST'])
