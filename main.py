@@ -135,16 +135,18 @@ def handle_message(event):
     user_id = event.source.user_id
     user_message = event.message.text.strip()
     reply_token = event.reply_token
-    state = user_states.setdefault(user_id, {'progress': 0})
-    progress = state.get('progress', 0)
     
-    if user_message in ["重置", "主選單"]:
+    # ★ 1. 將四個最高層級的指令放在最前面
+    if user_message == "開始遊戲":
+        # 如果使用者狀態存在，先清除，確保是全新開始
         if user_id in user_states:
             del user_states[user_id]
-        line_bot_api.reply_message(reply_token, TextSendMessage(text="已重置，請輸入「開始遊戲」重新開始。"))
+        # 重新建立一個乾淨的初始狀態
+        user_states[user_id] = {'progress': 0}
+        send_start_menu(reply_token)
         return
 
-    if user_message == "週末限定活動報名":
+    elif user_message == "週末限定活動報名":
         flex_link_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "週末限定活動", "weight": "bold", "size": "xl"}, {"type": "text", "text": "名額有限，請點擊下方按鈕立即報名！", "margin": "md", "wrap": True}, {"type": "separator", "margin": "xxl"}, {"type": "button", "style": "primary", "color": "#905c44", "margin": "xl", "height": "sm", "action": {"type": "uri", "label": "點我前往報名", "uri": "https://docs.google.com/forms/d/e/1FAIpQLSc28lR_7rCNwy7JShQBS9ags6DL0NinKXIUIDJ4dv6YwAIzuA/viewform?usp=dialog"}}]}}
         line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
         return
@@ -158,10 +160,16 @@ def handle_message(event):
         reply_text = "活動介紹還沒好再等等啦\n" * 8
         line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
-
-    if user_message == "開始遊戲" and progress == 0:
-        send_start_menu(reply_token)
+    
+    # ★ 2. 獲取狀態的程式碼移到後面
+    # 只有在不是上述四個指令時，才需要關心遊戲進度
+    state = user_states.get(user_id)
+    # 如果使用者不在遊戲中 (沒有 state)，就直接結束
+    if not state:
         return
+        
+    progress = state.get('progress', 0)
+    
     
     if user_message == "進入遊戲" and progress == 0:
         state['progress'] = -1
@@ -250,11 +258,17 @@ def handle_image_message(event):
         image_url = drive_file['webViewLink']
 
         record_result = record_completion(user_id, image_url=image_url)
-        if record_result:
-            if record_result['is_first']:
-                final_message = "🎉 照片上傳成功，恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！"
-            else:
-                final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！"
+if record_result:
+    # ★ 新增：組合兌換碼訊息
+    redemption_info = (
+        "\n\n" # 空兩行讓版面好看
+        "您的兌換碼為【PASS】。\n"
+        "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
+    )
+    if record_result['is_first']:
+        final_message = "🎉 照片上傳成功，恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！" + redemption_info
+    else:
+        final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！" + redemption_info
         else:
             final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
         
