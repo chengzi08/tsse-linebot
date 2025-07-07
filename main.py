@@ -26,14 +26,18 @@ if not all([LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET, GOOGLE_SHEET_NAME, G
     print("警告：請確認所有環境變數 (LINE..., GOOGLE_SHEET_NAME, GOOGLE_DRIVE_FOLDER_ID) 已設定。")
 
 try:
-    SERVICE_ACCOUNT_FILE = '/etc/secrets/google_credentials.json'
-    gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
-    sh = gc.open(GOOGLE_SHEET_NAME)
-    worksheet = sh.sheet1
-    print("成功連接 Google Sheet")
+    # ★ 關鍵修改：建立一個設定字典
+    settings = {
+        "service_account_file": SERVICE_ACCOUNT_FILE,
+    }
+    # ★ 關鍵修改：在初始化時直接傳入設定字典
+    gauth = GoogleAuth(settings=settings)
+    # 認證方法會被自動識別，不需要手動設定
+    drive = GoogleDrive(gauth)
+    print("成功初始化 Google Drive Client")
 except Exception as e:
-    worksheet = None
-    print(f"Google Sheet 連接失敗: {e}")
+    drive = None
+    print(f"Google Drive Client 初始化失敗: {e}")
 
 # --- Google Drive 初始化 (已修正為標準認證方法) ---
 try:
