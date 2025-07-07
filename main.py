@@ -66,6 +66,7 @@ def get_player_info(user_id):
         return None
 
 # ====== 核心函式：寫入紀錄 (已簡化) ======
+# record_completion 函式 (已修正)
 def record_completion(user_id):
     global worksheet
     if not worksheet: return None
@@ -73,21 +74,38 @@ def record_completion(user_id):
     if 'player_info' not in state: return None
     player_info = state['player_info']
     is_first_ever_completion = player_info['is_new']
+    
+    # ★ 關鍵修改：先檢查玩家過去是否已兌獎
+    has_redeemed_before = False
+    try:
+        # 找到該 user_id 的所有儲存格
+        all_user_records = worksheet.findall(user_id, in_column=5) # E欄是 User ID
+        for record_cell in all_user_records:
+            # 檢查同一行的 F 欄 (第6欄) 是否為 "是"
+            if worksheet.cell(record_cell.row, 6).value == '是':
+                has_redeemed_before = True
+                break # 只要找到一次，就可以確定已兌獎，跳出迴圈
+    except Exception as e:
+        print(f"檢查過往兌獎狀態時發生錯誤: {e}")
+        # 如果檢查出錯，為求穩定，預設為未兌獎
+        has_redeemed_before = False
+
     try:
         tpe_timezone = pytz.timezone('Asia/Taipei')
         completion_time = datetime.datetime.now(tpe_timezone)
         duration_seconds = round((completion_time - state['start_time']).total_seconds(), 2)
-        # ★ 簡化後的寫入列，已移除 image_url
+        
+        # ★ 關鍵修改：根據檢查結果來決定填入 "是" 或 "否"
         row_to_insert = [
             f"{player_info['id']}-{player_info['play_count']}",
             state['name'],
             completion_time.strftime("%Y-%m-%d %H:%M:%S"),
             duration_seconds,
             user_id,
-            "否", # F欄: 是否已兌獎
-            "是" if is_first_ever_completion else "否", # G欄: 是否首次通關
-            player_info['id'], # H欄: 玩家永久編號
-            player_info['play_count'] # I欄: 玩家通關次數
+            "是" if has_redeemed_before else "否", # F欄: 是否已兌獎
+            "是" if is_first_ever_completion else "否",
+            player_info['id'],
+            player_info['play_count']
         ]
         worksheet.insert_row(row_to_insert, 2)
         return {'is_first': is_first_ever_completion, 'count': player_info['play_count']}
