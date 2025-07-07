@@ -38,19 +38,27 @@ except Exception as e:
     print(f"Google Sheet 連接失敗: {e}")
 
 # --- Google Drive 初始化 (已修正為最終版認證方法) ---
+# --- Google Sheets 和 Drive 初始化 (最終修正版) ---
 try:
-    settings = {
-        # ★ 關鍵修改：手動加入這個鍵，即使它的值是 None
-        "client_config_file": None, 
-        "service_account_file": SERVICE_ACCOUNT_FILE,
-    }
-    gauth = GoogleAuth(settings=settings)
-    gauth.ServiceAuth() # ★ 關鍵修改：明確地呼叫服務帳號認證流程
+    # 1. 先用 gspread 成功認證，這一步我們已知是成功的
+    gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
+    sh = gc.open(GOOGLE_SHEET_NAME)
+    worksheet = sh.sheet1
+    print("成功連接 Google Sheet")
+
+    # 2. 建立一個空的 PyDrive2 認證物件
+    gauth = GoogleAuth()
+    # 3. ★ 關鍵：直接將 gspread 的認證成果 (gc.auth) 交給 gauth 使用
+    gauth.credentials = gc.auth
+    
+    # 4. 用這個已經被賦予認證的 gauth 來建立 Drive 物件
     drive = GoogleDrive(gauth)
     print("成功初始化 Google Drive Client")
+
 except Exception as e:
+    worksheet = None
     drive = None
-    print(f"Google Drive Client 初始化失敗: {e}")
+    print(f"Google 服務初始化失敗: {e}")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
