@@ -22,30 +22,25 @@ LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 GOOGLE_SHEET_NAME = os.environ.get('GOOGLE_SHEET_NAME')
 GOOGLE_DRIVE_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_FOLDER_ID')
 
+SERVICE_ACCOUNT_FILE = '/etc/secrets/google_credentials.json'
+
 if not all([LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET, GOOGLE_SHEET_NAME, GOOGLE_DRIVE_FOLDER_ID]):
     print("警告：請確認所有環境變數 (LINE..., GOOGLE_SHEET_NAME, GOOGLE_DRIVE_FOLDER_ID) 已設定。")
 
+# --- Google Sheets 初始化 ---
 try:
-    # ★ 關鍵修改：建立一個設定字典
-    settings = {
-        "service_account_file": SERVICE_ACCOUNT_FILE,
-    }
-    # ★ 關鍵修改：在初始化時直接傳入設定字典
-    gauth = GoogleAuth(settings=settings)
-    # 認證方法會被自動識別，不需要手動設定
-    drive = GoogleDrive(gauth)
-    print("成功初始化 Google Drive Client")
+    gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
+    sh = gc.open(GOOGLE_SHEET_NAME)
+    worksheet = sh.sheet1
+    print("成功連接 Google Sheet")
 except Exception as e:
-    drive = None
-    print(f"Google Drive Client 初始化失敗: {e}")
+    worksheet = None
+    print(f"Google Sheet 連接失敗: {e}")
 
-# --- Google Drive 初始化 (已修正為標準認證方法) ---
+# --- Google Drive 初始化 ---
 try:
-    gauth = GoogleAuth()
-    # ★ 關鍵修改：明確指定認證方法為服務帳號
-    gauth.auth_method = 'service'
-    # ★ 關鍵修改：直接提供金鑰檔案的路徑給 PyDrive2
-    gauth.service_account_file = SERVICE_ACCOUNT_FILE
+    settings = { "service_account_file": SERVICE_ACCOUNT_FILE }
+    gauth = GoogleAuth(settings=settings)
     drive = GoogleDrive(gauth)
     print("成功初始化 Google Drive Client")
 except Exception as e:
@@ -60,6 +55,7 @@ user_states = {}
 
 # ====== 核心函式：取得玩家資訊 ======
 def get_player_info(user_id):
+    global worksheet # ★★★ 關鍵修改 ★★★
     if not worksheet: return None
     try:
         cells = worksheet.findall(user_id, in_column=5)
@@ -81,6 +77,7 @@ def get_player_info(user_id):
 
 # ====== 核心函式：寫入紀錄 ======
 def record_completion(user_id, image_url=None):
+    global worksheet # ★★★ 關鍵修改 ★★★
     if not worksheet: return None
     state = user_states.get(user_id, {})
     if 'player_info' not in state: return None
@@ -99,28 +96,21 @@ def record_completion(user_id, image_url=None):
 
 # ====== 核心函式：兌換獎品 ======
 def redeem_prize(user_id):
+    global worksheet # ★★★ 關鍵修改 ★★★
     if not worksheet: return None
     try:
-        # 新寫法：find() 找不到時會回傳 None
         cell = worksheet.find(user_id, in_column=5)
-
-        # ★ 關鍵修改：用 if not cell 來判斷是否找到
         if not cell:
             return 'not_found'
         
-        # 如果程式能走到這裡，代表 cell 找到了
-        # 後續邏輯不變
         if worksheet.acell(f'G{cell.row}').value == '是':
             return 'already_redeemed'
         
         worksheet.update_acell(f'G{cell.row}', '是')
         return 'success'
-        
     except Exception as e:
-        # 保留這個 except 來捕捉其他可能的錯誤，例如網路問題
         print(f"兌獎時發生錯誤: {e}")
         return None
-
     
 # ====== Webhook 入口 ======
 @app.route("/callback", methods=['POST'])
@@ -139,13 +129,10 @@ def handle_message(event):
     user_id = event.source.user_id
     user_message = event.message.text.strip()
     reply_token = event.reply_token
-    
-    # ★ 1. 將四個最高層級的指令放在最前面
+
     if user_message == "開始遊戲":
-        # 如果使用者狀態存在，先清除，確保是全新開始
         if user_id in user_states:
             del user_states[user_id]
-        # 重新建立一個乾淨的初始狀態
         user_states[user_id] = {'progress': 0}
         send_start_menu(reply_token)
         return
@@ -165,15 +152,11 @@ def handle_message(event):
         line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
     
-    # ★ 2. 獲取狀態的程式碼移到後面
-    # 只有在不是上述四個指令時，才需要關心遊戲進度
     state = user_states.get(user_id)
-    # 如果使用者不在遊戲中 (沒有 state)，就直接結束
     if not state:
         return
         
     progress = state.get('progress', 0)
-    
     
     if user_message == "進入遊戲" and progress == 0:
         state['progress'] = -1
@@ -209,35 +192,19 @@ def handle_message(event):
         return
 
     if progress == 1:
-        if user_message == "A":
-            state['progress'] = 2
-            send_question_2(user_id)
-        else:
-            line_bot_api.push_message(user_id, TextSendMessage(text="答錯囉～再試試看！"))
+        if user_message == "A": state['progress'] = 2; send_question_2(user_id)
+        else: line_bot_api.push_message(user_id, TextSendMessage(text="答錯囉～再試試看！"))
     elif progress == 2:
-        if user_message == "C":
-            state['progress'] = 3
-            send_question_3(user_id)
-        else:
-            line_bot_api.push_message(user_id, TextSendMessage(text="錯誤答案！重來看看～"))
+        if user_message == "C": state['progress'] = 3; send_question_3(user_id)
+        else: line_bot_api.push_message(user_id, TextSendMessage(text="錯誤答案！重來看看～"))
     elif progress == 3:
-        if user_message == "B":
-            state['progress'] = 4
-            send_question_4(user_id)
-        else:
-            line_bot_api.push_message(user_id, TextSendMessage(text="這不是正確答案喔～再試一次！"))
+        if user_message == "B": state['progress'] = 4; send_question_4(user_id)
+        else: line_bot_api.push_message(user_id, TextSendMessage(text="這不是正確答案喔～再試一次！"))
     elif progress == 4:
-        if user_message == "B":
-            state['progress'] = 5
-            send_question_5(user_id)
-        else:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
-            
-    elif progress == 0:
-        line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入「開始遊戲」來選擇下一步動作，或輸入「重置」來清除卡關狀態。"))
+        if user_message == "B": state['progress'] = 5; send_question_5(user_id)
+        else: line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
 
 # ====== 處理圖片訊息 ======
-# handle_image_message 函式中
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image_message(event):
     user_id = event.source.user_id
@@ -249,12 +216,13 @@ def handle_image_message(event):
         return
 
     temp_file_path = f"{event.message.id}.jpg"
-    try: # ★ try 區塊開始
+    try:
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="收到照片，正在上傳至雲端...✨"))
         
         message_content = line_bot_api.get_message_content(event.message.id)
         with open(temp_file_path, 'wb') as fd:
-            for chunk in message_content.iter_content(): fd.write(chunk)
+            for chunk in message_content.iter_content():
+                fd.write(chunk)
 
         drive_file = drive.CreateFile({'title': f'{user_id}-{event.message.id}.jpg', 'parents': [{'id': GOOGLE_DRIVE_FOLDER_ID}]})
         drive_file.SetContentFile(temp_file_path)
@@ -262,12 +230,10 @@ def handle_image_message(event):
         drive_file.InsertPermission({'type': 'anyone', 'value': 'anyone', 'role': 'reader'})
         image_url = drive_file['webViewLink']
 
-        # ★ 關鍵修改：將這段邏輯移入 try 區塊內
         record_result = record_completion(user_id, image_url=image_url)
         if record_result:
-            # 組合兌換碼訊息
             redemption_info = (
-                "\n\n" # 空兩行讓版面好看
+                "\n\n"
                 "您的兌換碼為【PASS】。\n"
                 "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
             )
@@ -280,11 +246,9 @@ def handle_image_message(event):
         
         line_bot_api.push_message(user_id, TextSendMessage(text=final_message))
 
-    # ★ 關鍵修改：確保 except 與 try 對齊
     except Exception as e:
         print(f"圖片處理失敗: {e}")
         line_bot_api.push_message(user_id, TextSendMessage(text="啊！照片上傳失敗了...請再試一次。"))
-    # ★ 關鍵修改：確保 finally 與 try 對齊
     finally:
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
