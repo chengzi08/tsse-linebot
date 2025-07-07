@@ -11,7 +11,7 @@ from linebot.models import (
 )
 
 import gspread
-from gspread.exceptions import CellNotFound
+from gspread import CellNotFound 
 # ★ 移除 Imgur，改用 PyDrive2
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
