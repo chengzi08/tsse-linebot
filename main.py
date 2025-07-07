@@ -37,10 +37,15 @@ except Exception as e:
     worksheet = None
     print(f"Google Sheet 連接失敗: {e}")
 
-# --- Google Drive 初始化 ---
+# --- Google Drive 初始化 (已修正為最終版認證方法) ---
 try:
-    settings = { "service_account_file": SERVICE_ACCOUNT_FILE }
+    settings = {
+        # ★ 關鍵修改：手動加入這個鍵，即使它的值是 None
+        "client_config_file": None, 
+        "service_account_file": SERVICE_ACCOUNT_FILE,
+    }
     gauth = GoogleAuth(settings=settings)
+    gauth.ServiceAuth() # ★ 關鍵修改：明確地呼叫服務帳號認證流程
     drive = GoogleDrive(gauth)
     print("成功初始化 Google Drive Client")
 except Exception as e:
