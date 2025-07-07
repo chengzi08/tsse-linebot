@@ -11,7 +11,6 @@ from linebot.models import (
 )
 
 import gspread
-from gspread import CellNotFound
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 
