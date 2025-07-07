@@ -233,6 +233,7 @@ def handle_message(event):
         line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入「開始遊戲」來選擇下一步動作，或輸入「重置」來清除卡關狀態。"))
 
 # ====== 處理圖片訊息 ======
+# handle_image_message 函式中
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image_message(event):
     user_id = event.source.user_id
@@ -244,12 +245,12 @@ def handle_image_message(event):
         return
 
     temp_file_path = f"{event.message.id}.jpg"
-    try:
+    try: # ★ try 區塊開始
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="收到照片，正在上傳至雲端...✨"))
+        
         message_content = line_bot_api.get_message_content(event.message.id)
         with open(temp_file_path, 'wb') as fd:
-            for chunk in message_content.iter_content():
-                fd.write(chunk)
+            for chunk in message_content.iter_content(): fd.write(chunk)
 
         drive_file = drive.CreateFile({'title': f'{user_id}-{event.message.id}.jpg', 'parents': [{'id': GOOGLE_DRIVE_FOLDER_ID}]})
         drive_file.SetContentFile(temp_file_path)
@@ -257,25 +258,29 @@ def handle_image_message(event):
         drive_file.InsertPermission({'type': 'anyone', 'value': 'anyone', 'role': 'reader'})
         image_url = drive_file['webViewLink']
 
+        # ★ 關鍵修改：將這段邏輯移入 try 區塊內
         record_result = record_completion(user_id, image_url=image_url)
-if record_result:
-    # ★ 新增：組合兌換碼訊息
-    redemption_info = (
-        "\n\n" # 空兩行讓版面好看
-        "您的兌換碼為【PASS】。\n"
-        "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
-    )
-    if record_result['is_first']:
-        final_message = "🎉 照片上傳成功，恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！" + redemption_info
-    else:
-        final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！" + redemption_info
+        if record_result:
+            # 組合兌換碼訊息
+            redemption_info = (
+                "\n\n" # 空兩行讓版面好看
+                "您的兌換碼為【PASS】。\n"
+                "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
+            )
+            if record_result['is_first']:
+                final_message = "🎉 照片上傳成功，恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！" + redemption_info
+            else:
+                final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！" + redemption_info
         else:
             final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
         
         line_bot_api.push_message(user_id, TextSendMessage(text=final_message))
+
+    # ★ 關鍵修改：確保 except 與 try 對齊
     except Exception as e:
         print(f"圖片處理失敗: {e}")
         line_bot_api.push_message(user_id, TextSendMessage(text="啊！照片上傳失敗了...請再試一次。"))
+    # ★ 關鍵修改：確保 finally 與 try 對齊
     finally:
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
