@@ -7,12 +7,10 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage,
-    FlexSendMessage, ImageMessage, ImageSendMessage
+    FlexSendMessage, ImageSendMessage  # ImageMessage 已移除
 )
 
 import gspread
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
 
 app = Flask(__name__)
 
@@ -20,34 +18,24 @@ app = Flask(__name__)
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 GOOGLE_SHEET_NAME = os.environ.get('GOOGLE_SHEET_NAME')
-GOOGLE_DRIVE_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_FOLDER_ID')
+# GOOGLE_DRIVE_FOLDER_ID 已移除
 
 SERVICE_ACCOUNT_FILE = '/etc/secrets/google_credentials.json'
 
-if not all([LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET, GOOGLE_SHEET_NAME, GOOGLE_DRIVE_FOLDER_ID]):
-    print("警告：請確認所有環境變數 (LINE..., GOOGLE_SHEET_NAME, GOOGLE_DRIVE_FOLDER_ID) 已設定。")
+if not all([LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET, GOOGLE_SHEET_NAME]):
+    print("警告：請確認所有必要的環境變數已設定。")
 
-# --- Google Sheets 和 Drive 初始化 (最終修正版) ---
+# --- Google Sheets 初始化 ---
 try:
-    # 1. gspread 獨立認證，這部分已知是成功的
     gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
     sh = gc.open(GOOGLE_SHEET_NAME)
     worksheet = sh.sheet1
     print("成功連接 Google Sheet")
-
-    # 2. 建立一個空的 PyDrive2 認證物件
-    gauth = GoogleAuth()
-    # 3. ★ 關鍵：直接將 gspread 的「http_client.credentials」交給 gauth 使用
-    gauth.credentials = gc.http_client.credentials
-    
-    # 4. 用這個已經被賦予認證的 gauth 來建立 Drive 物件
-    drive = GoogleDrive(gauth)
-    print("成功初始化 Google Drive Client")
-
 except Exception as e:
     worksheet = None
-    drive = None
-    print(f"Google 服務初始化失敗: {e}")
+    print(f"Google Sheet 連接失敗: {e}")
+
+# --- Google Drive 初始化區塊已完全移除 ---
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
@@ -55,31 +43,31 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # ====== 使用者狀態記錄 ======
 user_states = {}
 
-# ====== 核心函式：取得玩家資訊 ======
+# ====== 核心函式：取得玩家資訊 (不變) ======
 def get_player_info(user_id):
-    global worksheet # ★★★ 關鍵修改 ★★★
+    global worksheet
     if not worksheet: return None
     try:
-        cells = worksheet.findall(user_id, in_column=5)
+        cells = worksheet.findall(user_id, in_column=5) # E欄是 LINE User ID
         if not cells:
-            all_player_ids = worksheet.col_values(9)[1:]
+            all_player_ids = worksheet.col_values(8)[1:] # H欄是玩家永久編號
             all_player_ids_int = [int(i) for i in all_player_ids if i and i.isdigit()]
             new_id = max(all_player_ids_int) + 1 if all_player_ids_int else 1
             return {'id': new_id, 'play_count': 1, 'is_new': True}
         else:
             first_cell = cells[0]
-            permanent_id_str = worksheet.cell(first_cell.row, 9).value
+            permanent_id_str = worksheet.cell(first_cell.row, 8).value # H欄
             permanent_id = int(permanent_id_str) if permanent_id_str and permanent_id_str.isdigit() else 0
-            all_play_counts = [int(worksheet.cell(c.row, 10).value) for c in cells if worksheet.cell(c.row, 10).value.isdigit()]
+            all_play_counts = [int(worksheet.cell(c.row, 9).value) for c in cells if worksheet.cell(c.row, 9).value.isdigit()] # I欄
             next_play_count = max(all_play_counts) + 1 if all_play_counts else 1
             return {'id': permanent_id, 'play_count': next_play_count, 'is_new': False}
     except Exception as e:
         print(f"獲取玩家資訊時出錯: {e}")
         return None
 
-# ====== 核心函式：寫入紀錄 ======
-def record_completion(user_id, image_url=None):
-    global worksheet # ★★★ 關鍵修改 ★★★
+# ====== 核心函式：寫入紀錄 (已簡化) ======
+def record_completion(user_id):
+    global worksheet
     if not worksheet: return None
     state = user_states.get(user_id, {})
     if 'player_info' not in state: return None
@@ -89,32 +77,44 @@ def record_completion(user_id, image_url=None):
         tpe_timezone = pytz.timezone('Asia/Taipei')
         completion_time = datetime.datetime.now(tpe_timezone)
         duration_seconds = round((completion_time - state['start_time']).total_seconds(), 2)
-        row_to_insert = [f"{player_info['id']}-{player_info['play_count']}", state['name'], completion_time.strftime("%Y-%m-%d %H:%M:%S"), duration_seconds, user_id, image_url or "", "否", "是" if is_first_ever_completion else "否", player_info['id'], player_info['play_count']]
+        # ★ 簡化後的寫入列，已移除 image_url
+        row_to_insert = [
+            f"{player_info['id']}-{player_info['play_count']}",
+            state['name'],
+            completion_time.strftime("%Y-%m-%d %H:%M:%S"),
+            duration_seconds,
+            user_id,
+            "否", # F欄: 是否已兌獎
+            "是" if is_first_ever_completion else "否", # G欄: 是否首次通關
+            player_info['id'], # H欄: 玩家永久編號
+            player_info['play_count'] # I欄: 玩家通關次數
+        ]
         worksheet.insert_row(row_to_insert, 2)
         return {'is_first': is_first_ever_completion, 'count': player_info['play_count']}
     except Exception as e:
         print(f"寫入 Google Sheet 時發生錯誤: {e}")
         return None
 
-# ====== 核心函式：兌換獎品 ======
+# ====== 核心函式：兌換獎品 (欄位編號已更新) ======
 def redeem_prize(user_id):
-    global worksheet # ★★★ 關鍵修改 ★★★
+    global worksheet
     if not worksheet: return None
     try:
-        cell = worksheet.find(user_id, in_column=5)
+        cell = worksheet.find(user_id, in_column=5) # E欄是 LINE User ID
         if not cell:
             return 'not_found'
         
-        if worksheet.acell(f'G{cell.row}').value == '是':
+        # F欄是是否已兌獎
+        if worksheet.acell(f'F{cell.row}').value == '是':
             return 'already_redeemed'
         
-        worksheet.update_acell(f'G{cell.row}', '是')
+        worksheet.update_acell(f'F{cell.row}', '是')
         return 'success'
     except Exception as e:
         print(f"兌獎時發生錯誤: {e}")
         return None
     
-# ====== Webhook 入口 ======
+# ====== Webhook 入口 (不變) ======
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -132,6 +132,7 @@ def handle_message(event):
     user_message = event.message.text.strip()
     reply_token = event.reply_token
 
+    # 最高層級指令
     if user_message == "開始遊戲":
         if user_id in user_states:
             del user_states[user_id]
@@ -160,6 +161,7 @@ def handle_message(event):
         
     progress = state.get('progress', 0)
     
+    # 遊戲流程
     if user_message == "進入遊戲" and progress == 0:
         state['progress'] = -1
         line_bot_api.reply_message(reply_token, TextSendMessage(text="歡迎來到問答挑戰！\n請輸入您想在遊戲中使用的名稱："))
@@ -202,60 +204,34 @@ def handle_message(event):
     elif progress == 3:
         if user_message == "B": state['progress'] = 4; send_question_4(user_id)
         else: line_bot_api.push_message(user_id, TextSendMessage(text="這不是正確答案喔～再試一次！"))
+    
+    # ★ 關鍵修改：在第四題答對後直接結束遊戲
     elif progress == 4:
-        if user_message == "B": state['progress'] = 5; send_question_5(user_id)
-        else: line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
-
-# ====== 處理圖片訊息 ======
-@handler.add(MessageEvent, message=ImageMessage)
-def handle_image_message(event):
-    user_id = event.source.user_id
-    state = user_states.get(user_id, {})
-    if state.get('progress') != 5: return
-
-    if not drive:
-        line_bot_api.push_message(user_id, TextSendMessage(text="抱歉，圖片上傳服務暫時無法使用。"))
-        return
-
-    temp_file_path = f"{event.message.id}.jpg"
-    try:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="收到照片，正在上傳至雲端...✨"))
-        
-        message_content = line_bot_api.get_message_content(event.message.id)
-        with open(temp_file_path, 'wb') as fd:
-            for chunk in message_content.iter_content():
-                fd.write(chunk)
-
-        drive_file = drive.CreateFile({'title': f'{user_id}-{event.message.id}.jpg', 'parents': [{'id': GOOGLE_DRIVE_FOLDER_ID}]})
-        drive_file.SetContentFile(temp_file_path)
-        drive_file.Upload()
-        drive_file.InsertPermission({'type': 'anyone', 'value': 'anyone', 'role': 'reader'})
-        image_url = drive_file['webViewLink']
-
-        record_result = record_completion(user_id, image_url=image_url)
-        if record_result:
-            redemption_info = (
-                "\n\n"
-                "您的兌換碼為【PASS】。\n"
-                "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
-            )
-            if record_result['is_first']:
-                final_message = "🎉 照片上傳成功，恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！" + redemption_info
+        if user_message == "B":
+            # 答對第四題，直接通關
+            record_result = record_completion(user_id)
+            if record_result:
+                redemption_info = (
+                    "\n\n"
+                    "您的兌換碼為【PASS】。\n"
+                    "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
+                )
+                if record_result['is_first']:
+                    final_message = "🎉 恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！" + redemption_info
+                else:
+                    final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！" + redemption_info
             else:
-                final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！" + redemption_info
+                final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
+            
+            line_bot_api.reply_message(reply_token, TextSendMessage(text=final_message))
+            
+            # 結束後清除狀態
+            if user_id in user_states:
+                del user_states[user_id]
         else:
-            final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
-        
-        line_bot_api.push_message(user_id, TextSendMessage(text=final_message))
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
 
-    except Exception as e:
-        print(f"圖片處理失敗: {e}")
-        line_bot_api.push_message(user_id, TextSendMessage(text="啊！照片上傳失敗了...請再試一次。"))
-    finally:
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
-        if user_id in user_states:
-            del user_states[user_id]
+# ====== 處理圖片訊息函式已完全移除 ======
 
 # ====== 題目與選單函式 ======
 def send_start_menu(reply_token):
@@ -278,9 +254,7 @@ def send_question_4(user_id):
     flex_message = { "type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第四題：一份套餐比單點雞排+可樂便宜40元，\n單點雞排送一片+兩杯可樂，比兩份套餐便宜10元。\n根據敘述，哪個為正確結論？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 套餐140", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 套餐120", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 雞排90", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D 雞排70", "text": "D"}}]}]}}
     line_bot_api.push_message(user_id, FlexSendMessage(alt_text="第四題", contents=flex_message))
 
-def send_question_5(user_id):
-    line_bot_api.push_message(user_id, TextSendMessage(text="太棒了！這是最後一關：\n\n請上傳一張你最喜歡的照片，完成最後的挑戰！"))
-
+# send_question_5 已移除
 
 # ====== 啟動 ======
 if __name__ == "__main__":
