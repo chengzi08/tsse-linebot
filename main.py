@@ -35,9 +35,13 @@ except Exception as e:
     worksheet = None
     print(f"Google Sheet 連接失敗: {e}")
 
+# --- Google Drive 初始化 (已修正為標準認證方法) ---
 try:
     gauth = GoogleAuth()
-    gauth.credentials = gspread.auth.load_credentials(SERVICE_ACCOUNT_FILE)
+    # ★ 關鍵修改：明確指定認證方法為服務帳號
+    gauth.auth_method = 'service'
+    # ★ 關鍵修改：直接提供金鑰檔案的路徑給 PyDrive2
+    gauth.service_account_file = SERVICE_ACCOUNT_FILE
     drive = GoogleDrive(gauth)
     print("成功初始化 Google Drive Client")
 except Exception as e:
