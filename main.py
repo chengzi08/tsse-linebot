@@ -214,20 +214,20 @@ def handle_message(event):
 
     # ★ 優化點 2: 答題過程全部改用 reply_token (免費)
     if progress == 1:
-        if user_message == "B":
-            state['progress'] = 2
-            send_question_2(reply_token) # 傳入 reply_token
-        else:
-            # 定義答錯時要傳送的圖片網址
-            # 注意：要使用 raw 版本的網址才能正確顯示
-           image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
-           image_message = ImageSendMessage(
-                original_content_url=image_url,
-                preview_image_url=image_url
-            )
-            
-            # 2. 準備文字訊息
-            text_message = TextSendMessage(text="再仔細看看!!!～")
+    if user_message == "C": # 假設 "9隻雞" 是正確答案
+        state['progress'] = 2
+        send_question_2(reply_token)
+    else:
+        image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
+        image_message = ImageSendMessage(
+            original_content_url=image_url,
+            preview_image_url=image_url
+        )
+        text_message = TextSendMessage(text="再仔細看看!!!～")
+        line_bot_api.reply_message(
+            reply_token,
+            messages=[image_message, text_message]
+        )
             
             # 3. 將兩個訊息放進一個 list，並一起傳送
             line_bot_api.reply_message(
