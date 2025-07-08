@@ -353,17 +353,18 @@ def handle_message(event):
             state['progress'] = 2
             send_question_2(reply_token)
         else:
+            # ★★★ 確保這一段邏輯是完整的 ★★★
             image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
             image_message = ImageSendMessage(
                 original_content_url=image_url,
                 preview_image_url=image_url
             )
-            text_message = TextSendMessage(text="答案不正確！看圖片再試一次")
+            text_message = TextSendMessage(text="再仔細看看!!!～")
+            
             line_bot_api.reply_message(
                 reply_token,
                 messages=[image_message, text_message]
-            )
-            
+            )            
             # 3. 將兩個訊息放進一個 list，並一起傳送
         line_bot_api.reply_message(
                 reply_token,
