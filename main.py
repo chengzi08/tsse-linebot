@@ -358,41 +358,27 @@ def handle_message(event):
 
     # ★ 優化點 2: 答題過程全部改用 reply_token (免費)
     if progress == 1:
-        if user_message == "B": # 假設 "9隻雞" 是正確答案
+        if user_message == "C":
             state['progress'] = 2
             send_question_2(reply_token)
         else:
-            # ★★★ 確保這一段邏輯是完整的 ★★★
             image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
-            image_message = ImageSendMessage(
-                original_content_url=image_url,
-                preview_image_url=image_url
-            )
+            image_message = ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
             text_message = TextSendMessage(text="再仔細看看!!!～")
-            
-            line_bot_api.reply_message(
-                reply_token,
-                messages=[image_message, text_message]
-            )            
-            # 3. 將兩個訊息放進一個 list，並一起傳送
-        line_bot_api.reply_message(
-                reply_token,
-                messages=[image_message, text_message] # 注意這裡是 messages=[...]
-            )
-            
-            # 使用 reply_message 傳送圖片
-        line_bot_api.reply_message(reply_token, wrong_answer_message)
+            line_bot_api.reply_message(reply_token, messages=[image_message, text_message])
+
     elif progress == 2:
-        if user_message == "C":
+        if user_message == "A":
             state['progress'] = 3
-            send_question_3(reply_token) # 傳入 reply_token
+            send_question_3(reply_token)
         else:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="錯誤答案！重來看看～")) # 改用 reply
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="錯誤答案！重來看看～"))
+
     elif progress == 3:
-            pass
+        pass
+
     elif progress == 4:
         if user_message == "我已拍照打卡完畢":
-            # 1. 先回覆處理中訊息，避免超時
             line_bot_api.reply_message(reply_token, TextSendMessage(text="挑戰完成！正在為您製作專屬成績單...請稍候片刻 ✨"))
             
             # 2. 準備生成成績單所需的資料
