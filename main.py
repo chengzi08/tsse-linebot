@@ -218,7 +218,18 @@ def handle_message(event):
             state['progress'] = 2
             send_question_2(reply_token) # 傳入 reply_token
         else:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="答錯囉～再試試看！")) # 改用 reply
+            # 定義答錯時要傳送的圖片網址
+            # 注意：要使用 raw 版本的網址才能正確顯示
+            image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/Q1-A.jpg?raw=true"
+            
+            # 建立圖片訊息物件
+            wrong_answer_message = ImageSendMessage(
+                original_content_url=image_url,
+                preview_image_url=image_url
+            )
+            
+            # 使用 reply_message 傳送圖片
+            line_bot_api.reply_message(reply_token, wrong_answer_message)
     elif progress == 2:
         if user_message == "C":
             state['progress'] = 3
