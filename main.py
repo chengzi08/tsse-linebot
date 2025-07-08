@@ -382,18 +382,38 @@ def handle_message(event):
             pass
     elif progress == 4:
         if user_message == "我已拍照打卡完畢":
+            # 1. 先回覆處理中訊息，避免超時
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="挑戰完成！正在為您製作專屬成績單...請稍候片刻 ✨"))
+            
+            # 2. 準備生成成績單所需的資料
+            state_data = user_states.get(user_id, {})
+            player_name = state_data.get('name', '挑戰者')
+            start_time = state_data.get('start_time', datetime.datetime.now(pytz.timezone('Asia/Taipei')))
+            time_spent = round((datetime.datetime.now(pytz.timezone('Asia/Taipei')) - start_time).total_seconds(), 2)
+
+            # 3. 生成成績單
+            report_card_url = create_report_card(player_name, time_spent)
+
+            # 4. 記錄到 Google Sheet
             record_result = record_completion(user_id)
             state['progress'] = 5 # 進入等待兌換狀態
+
+            # 5. 準備最終要發送的訊息
+            messages_to_send = []
+            if report_card_url:
+                messages_to_send.append(ImageSendMessage(original_content_url=report_card_url, preview_image_url=report_card_url))
             
             if record_result:
                 final_flex = get_final_redemption_menu(record_result)
-                line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="恭喜通關！", contents=final_flex))
+                messages_to_send.append(FlexSendMessage(alt_text="恭喜通關！", contents=final_flex))
             else:
-                final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
-                line_bot_api.reply_message(reply_token, TextSendMessage(text=final_message))
-                if user_id in user_states: del user_states[user_id]
+                messages_to_send.append(TextSendMessage(text="恭喜通關！但在記錄成績時發生錯誤。"))
+
+            # 6. 使用 push_message 發送 (因為 reply_token 已用掉)
+            if messages_to_send:
+                line_bot_api.push_message(user_id, messages=messages_to_send)
         else:
-            pass # 如果使用者在第四關亂打字，不回應
+            pass # 如果在第四關亂打字，不回應
             
                # 點擊通關畫面的 "兌換獎項" 按鈕
     elif progress == 5 and user_message == "兌換獎項":
