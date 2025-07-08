@@ -4,3 +4,4 @@ gspread
 pytz
 gunicorn
 requests
+Pillow
