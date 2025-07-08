@@ -135,6 +135,25 @@ def callback():
     except InvalidSignatureError:
         abort(400)
     return 'OK'
+# ====== ★ 圖片判讀 ★ ======
+@handler.add(MessageEvent, message=ImageMessage)
+def handle_image_message(event):
+    user_id = event.source.user_id
+    reply_token = event.reply_token
+
+    state = user_states.get(user_id)
+    if not state: return
+
+    # 檢查是否在第三關等待圖片
+    if state.get('progress') == 3:
+        state['progress'] = 4 # 進度推進到第四關
+        
+        # 準備回覆訊息和下一關題目
+        reply_text = TextSendMessage(text="哇！整個場館你最夏啪！")
+        q4_flex = FlexSendMessage(alt_text="第四關", contents=get_question_4_flex()) # 使用輔助函式取得 JSON
+        
+        # 一次性回覆並發送第四關
+        line_bot_api.reply_message(reply_token, messages=[reply_text, q4_flex])
 
 # ====== ★ 修改後的處理文字訊息 (優化費用) ★ ======
 @handler.add(MessageEvent, message=TextMessage)
@@ -148,8 +167,8 @@ def handle_message(event):
     if user_message == "開始遊戲":
         if user_id in user_states:
             del user_states[user_id]
-        user_states[user_id] = {'progress': 0}
-        send_start_menu(reply_token)
+        user_states[user_id] = {'progress': -1}
+        line_bot_api.reply_message(reply_token, TextSendMessage(text="歡迎來到問答挑戰！\n請輸入您想在遊戲中使用的名稱："))
         return
 
     elif user_message == "週末限定活動報名":
@@ -172,30 +191,7 @@ def handle_message(event):
         return
         
     progress = state.get('progress', 0)
-    
-    # 遊戲流程
-    if user_message == "進入遊戲" and progress == 0:
-        state['progress'] = -1
-        line_bot_api.reply_message(reply_token, TextSendMessage(text="歡迎來到問答挑戰！\n請輸入您想在遊戲中使用的名稱："))
-        return
 
-    if user_message == "兌換獎項" and progress == 0:
-        state['progress'] = -2
-        line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入兌換碼："))
-        return
-
-
-    if progress == -2:
-        if user_message == "PASS":
-            result = redeem_prize(user_id)
-            reply_text = {'success': "獎項兌換成功！", 'already_redeemed': "您已兌換過獎品囉！", 'not_found': "您尚未完成遊戲挑戰，無法兌換獎品喔！"}.get(result, "兌換時發生錯誤，請聯繫管理員。")
-            state['progress'] = 0
-            line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text))
-        else:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="兌換碼錯誤，請重新輸入。"))
-        return
-
-    
     # ★ 優化點 1: 輸入姓名後，合併回覆歡迎詞和第一題 (免費)
     if progress == -1:
         player_name = user_message
@@ -218,7 +214,7 @@ def handle_message(event):
 
     # ★ 優化點 2: 答題過程全部改用 reply_token (免費)
     if progress == 1:
-        if user_message == "A":
+        if user_message == "B":
             state['progress'] = 2
             send_question_2(reply_token) # 傳入 reply_token
         else:
@@ -230,36 +226,38 @@ def handle_message(event):
         else:
             line_bot_api.reply_message(reply_token, TextSendMessage(text="錯誤答案！重來看看～")) # 改用 reply
     elif progress == 3:
-        if user_message == "B":
-            state['progress'] = 4
-            send_question_4(reply_token) # 傳入 reply_token
-        else:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="這不是正確答案喔～再試一次！")) # 改用 reply
-    
+            pass
     elif progress == 4:
-        if user_message == "B":
-            # 答對第四題，直接通關
+        if user_message == "我已拍照打卡完畢":
             record_result = record_completion(user_id)
+            state['progress'] = 5 # 進入等待兌換狀態
+            
             if record_result:
-                redemption_info = (
-                    "\n\n"
-                    "您的兌換碼為【PASS】。\n"
-                    "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
-                )
-                if record_result['is_first']:
-                    final_message = "🎉 恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！" + redemption_info
-                else:
-                    final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！" + redemption_info
+                final_flex = get_final_redemption_menu(record_result)
+                line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="恭喜通關！", contents=final_flex))
             else:
                 final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
-            
-            line_bot_api.reply_message(reply_token, TextSendMessage(text=final_message))
-            
-            # 結束後清除狀態
-            if user_id in user_states:
-                del user_states[user_id]
+                line_bot_api.reply_message(reply_token, TextSendMessage(text=final_message))
+                if user_id in user_states: del user_states[user_id]
         else:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
+            pass # 如果使用者在第四關亂打字，不回應
+            
+               # 點擊通關畫面的 "兌換獎項" 按鈕
+    elif progress == 5 and user_message == "兌換獎項":
+        state['progress'] = -2
+        line_bot_api.reply_message(reply_token, TextSendMessage(text="請將手機交給工作人員，並由工作人員輸入兌換碼："))
+        return
+    
+    # 輸入兌換碼
+    if progress == -2:
+        if user_message == "PASS":
+            result = redeem_prize(user_id)
+            reply_text = {'success': "獎項兌換成功！", 'already_redeemed': "您已兌換過獎品囉！", 'not_found': "您尚未完成遊戲挑戰，無法兌換獎品喔！"}.get(result, "兌換時發生錯誤，請聯繫管理員。")
+            if user_id in user_states: del user_states[user_id] # 兌換後清除狀態
+            line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text))
+        else:
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="兌換碼錯誤，請重新輸入。"))
+        return
 
 # ====== ★ 題目與選單函式 (修改為使用 reply_token) ★ ======
 def send_start_menu(reply_token):
@@ -267,23 +265,34 @@ def send_start_menu(reply_token):
     line_bot_api.reply_message(reply_token, flex_message)
 
 # ★ 新增輔助函式，用於取得第一題的 Flex JSON
+# ★ 修改點 ★
 def get_question_1_flex():
-    return { "type": "bubble", "hero": {"type": "image", "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q1.png?raw=true", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第一題：誰是飛天小女警的角色？", "weight": "bold", "size": "md", "margin": "md"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 泡泡", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 豆豆", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 毛毛", "text": "C"}}]}]}}
+    # 注意：請將圖片 URL 換成您自己的
+    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1.png", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡一：找找我在哪", "weight": "bold", "size": "lg"}, {"type": "text", "text": "找到這本神秘的大書，從左邊翻開數第8頁，數數看，圖片中有幾隻雞呢?", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "action": {"type": "message", "label": "A：５隻雞", "text": "A"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "B：７隻雞", "text": "B"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "C：９隻雞", "text": "C"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "D：沒有雞", "text": "D"}}]}]}}
 
-# ★ 修改參數為 reply_token，並使用 reply_message
 def send_question_2(reply_token):
-    flex_message = {"type": "bubble", "hero": {"type": "image", "url": "https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第二題：一次函數 y＝－2x－6 通過哪個點？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A (-4, 1)", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B (-4, 2)", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C (-4, -2)", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D (-4, -1)", "text": "D"}}]}]}}
-    line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="第二題", contents=flex_message))
+    # 注意：請將圖片 URL 換成您自己的
+    flex_message = {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q2.png", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡二：尋找寶藏 ─ 拼圖遊戲", "weight": "bold", "size": "lg"}, {"type": "text", "text": "手腦並用完成拼圖挑戰，拼出藏寶路線圖。\n請問拼完後各對應框的編號是什麼呢？", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "action": {"type": "message", "label": "A", "text": "A"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "B", "text": "B"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "C", "text": "C"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "D", "text": "D"}}]}]}}
+    line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="第二關", contents=flex_message))
 
-# ★ 修改參數為 reply_token，並使用 reply_message
 def send_question_3(reply_token):
-    flex_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第三題：多少個正整數是 18 的倍數，也是 216 的因數？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 2", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 6", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 10", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D 12", "text": "D"}}]}]}}
-    line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="第三題", contents=flex_message))
+    # 注意：請將圖片 URL 換成您自己的
+    reply_text = "關卡三：全場我最亮 ─ 與飛天小女警拍美照\n\n找到場館內的飛天小女警打卡區，戴上夏啪拍照小物再拍張照，今夏的美好回憶全在台塑生醫健康悠活館！\n\n拍完照記得利用訊息傳回來給我們唷～"
+    q3_image = ImageSendMessage(
+        original_content_url="https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q3.png",
+        preview_image_url="https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q3.png"
+    )
+    line_bot_api.reply_message(reply_token, messages=[q3_image, TextSendMessage(text=reply_text)])
 
-# ★ 修改參數為 reply_token，並使用 reply_message
-def send_question_4(reply_token):
-    flex_message = { "type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "第四題：一份套餐比單點雞排+可樂便宜40元，\n單點雞排送一片+兩杯可樂，比兩份套餐便宜10元。\n根據敘述，哪個為正確結論？", "weight": "bold", "size": "md", "margin": "md", "wrap": True}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#6EC1E4", "action": {"type": "message", "label": "A 套餐140", "text": "A"}}, {"type": "button", "style": "primary", "color": "#A3D977", "action": {"type": "message", "label": "B 套餐120", "text": "B"}}, {"type": "button", "style": "primary", "color": "#F7B2B7", "action": {"type": "message", "label": "C 雞排90", "text": "C"}}, {"type": "button", "style": "primary", "color": "#FFD966", "action": {"type": "message", "label": "D 雞排70", "text": "D"}}]}]}}
-    line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="第四題", contents=flex_message))
+def get_question_4_flex():
+    # 注意：請將圖片 URL 換成您自己的
+    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q4.png", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡四：台塑生醫 x 飛天小女警", "weight": "bold", "size": "lg"}, {"type": "text", "text": "在商品銷售區找到聯名商品，拍張照並上傳到社群，打卡在台塑生醫健康悠活館，並出示給販售區工作人員，即可得到飛天小女警的扇子！", "margin": "md", "wrap": True}]}, "footer": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "我已拍照打卡完畢，請工作人員審核並點選", "wrap": True, "align": "center", "size": "sm"}, {"type": "button", "style": "primary", "margin": "md", "action": {"type": "message", "label": "確認審核", "text": "我已拍照打卡完畢"}}]}}
+
+def get_final_redemption_menu(record_result):
+    title = "🎉 恭喜你完成所有挑戰！🎊" if record_result['is_first'] else "🎉 挑戰成功！🎉"
+    body_text = "您的成績已成功記錄！" if record_result['is_first'] else f"這是您的第 {record_result['count']} 次通關紀錄！"
+    
+    return {"type": "bubble", "body": {"type": "box", "layout": "vertical", "spacing": "md", "contents": [{"type": "text", "text": title, "weight": "bold", "size": "xl", "wrap": True, "align": "center"}, {"type": "text", "text": body_text, "align": "center", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "text", "text": "您的兌換碼為【PASS】。", "margin": "lg", "weight": "bold", "align": "center"}, {"type": "text", "text": "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）", "wrap": True, "size": "xs", "align": "center", "color": "#888888"}, {"type": "button", "style": "primary", "margin": "xl", "action": {"type": "message", "label": "兌換獎項", "text": "兌換獎項"}}]}}
 
 # ====== 啟動 ======
 if __name__ == "__main__":
