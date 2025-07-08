@@ -146,45 +146,44 @@ def get_leaderboard():
         if not records:
             return "目前還沒有人完成挑戰，快來搶頭香吧！🏆"
 
-        # 進行排序
-        # 我們要根據 '總花費時間(秒)' 這個欄位來排序
-        # 使用 lambda 函式來指定排序的鍵 (key)
-        # sorted() 預設是升序 (時間越少越前面)，正是我們想要的
-        # 我們只取每個玩家的 '首次通關' 紀錄來排名
+         # 清理所有記錄的鍵，去除前後空格
+        cleaned_records = []
+        for record in records:
+            cleaned_record = {key.strip(): value for key, value in record.items()}
+            cleaned_records.append(cleaned_record)
         
-        # 篩選出首次通關的紀錄 (G欄為 '是')
+        # 接下來都使用 cleaned_records
+        records = cleaned_records
+
+        # 現在，在這裡定義您 Sheet 中確切的欄位名稱 (從 Sheet 複製貼上)
+        TIME_COLUMN_HEADER = '總花費時間(秒)' # <-- 把這裡換成您從 Sheet 複製的標頭
+        NAME_COLUMN_HEADER = '玩家名稱(B)'   # <-- 確認這個也正確
+        FIRST_TIME_COLUMN_HEADER = '是否為首次通關(G)' # <-- 確認這個也正確
+        
         first_completion_records = [
-            r for r in records if str(r.get('是否為首次通關(G)', '否')).strip() == '是'
+            r for r in records if str(r.get(FIRST_TIME_COLUMN_HEADER, '否')).strip() == '是'
         ]
 
         if not first_completion_records:
             return "目前還沒有玩家首次完成挑戰！"
             
-        # 根據 '總花費時間(秒)' (D欄) 進行排序
-        # 確保時間是數字型態
         for record in first_completion_records:
             try:
-                record['總花費時間(秒)'] = float(record['總花費時間(秒)'])
+                record[TIME_COLUMN_HEADER] = float(record[TIME_COLUMN_HEADER])
             except (ValueError, TypeError):
-                # 如果時間格式不對，給一個極大值，讓它排到後面
-                record['總花費時間(秒)'] = float('inf')
+                record[TIME_COLUMN_HEADER] = float('inf')
 
-        sorted_records = sorted(first_completion_records, key=lambda x: x['總花f費時間(秒)'])
+        sorted_records = sorted(first_completion_records, key=lambda x: x[TIME_COLUMN_HEADER])
 
-        # 取出前 5 名
         top_5_records = sorted_records[:5]
 
-        # 格式化輸出文字
         leaderboard_text = "🏆 積分計時排行榜 🏆\n\n"
         rank_emojis = ["🥇", "🥈", "🥉", "⒋", "⒌"]
 
         for i, record in enumerate(top_5_records):
             rank = rank_emojis[i]
-            # 從記錄中取得 '玩家名稱(B)' 和 '總花費時間(秒)(D)'
-            name = record.get('玩家名稱(B)', '匿名玩家')
-            time_spent = record.get('總花費時間(秒)', 'N/A')
-            
-            # 加上名次、名稱和時間
+            name = record.get(NAME_COLUMN_HEADER, '匿名玩家')
+            time_spent = record.get(TIME_COLUMN_HEADER, 'N/A')
             leaderboard_text += f"{rank} {name} - {time_spent} 秒\n"
 
         return leaderboard_text.strip()
