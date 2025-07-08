@@ -221,7 +221,7 @@ def handle_message(event):
             # 定義答錯時要傳送的圖片網址
             # 注意：要使用 raw 版本的網址才能正確顯示
            image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
-            image_message = ImageSendMessage(
+           image_message = ImageSendMessage(
                 original_content_url=image_url,
                 preview_image_url=image_url
             )
