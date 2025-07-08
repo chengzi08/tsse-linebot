@@ -129,66 +129,6 @@ def redeem_prize(user_id):
         print(f"兌獎時發生錯誤: {e}")
         return None
 
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-# ★    全新功能：動態生成個人化成績單函式         ★
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-def create_report_card(player_name, time_spent):
-    try:
-        template_path = "report_card_template.jpg" # 已修正檔名
-        img = Image.open(template_path)
-        draw = ImageDraw.Draw(img)
-
-        font_path = "NotoSansTC-Bold.otf" 
-        name_font = ImageFont.truetype(font_path, size=48)
-        time_font = ImageFont.truetype(font_path, size=36)
-
-        name_text = f"玩家：{player_name}"
-        time_text = f"通關時間：{time_spent} 秒"
-
-        draw.text((100, 150), name_text, font=name_font, fill=(255, 255, 255))
-        draw.text((100, 220), time_text, font=time_font, fill=(255, 255, 255))
-
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format='PNG')
-        img_byte_arr.seek(0)
-
-        print("正在上傳成績單到 freeimage.host...")
-        
-        # freeimage.host 的 API 端點
-        upload_url = "https://freeimage.host/api/1/upload"
-        
-        # 準備上傳的資料
-        payload = {
-            'key': FREEIMAGE_API_KEY,
-            'action': 'upload',
-            'format': 'json'
-        }
-        files = {'source': ('report_card.png', img_byte_arr, 'image/png')}
-        
-        # 發送 POST 請求
-        response = requests.post(upload_url, data=payload, files=files)
-        
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('status_code') == 200:
-                image_url = result.get('image', {}).get('url')
-                print(f"成績單上傳成功！URL: {image_url}")
-                return image_url
-            else:
-                print(f"Freeimage 上傳失敗: {result.get('error', {}).get('message')}")
-                return None
-        else:
-            print(f"Freeimage API 請求失敗，狀態碼: {response.status_code}")
-            return None
-
-    except FileNotFoundError:
-        print("錯誤：找不到 report_card_template.jpg 或 NotoSansTC-Bold.otf！")
-        return None
-    except Exception as e:
-        print(f"生成成績單時發生錯誤: {e}")
-        return None
-
-
 # ★★★★★★★★★★★★★★★★★★★★★★★★★
 # ★    這裡是新增的排行榜核心函式    ★
 # ★★★★★★★★★★★★★★★★★★★★★★★★★
@@ -358,7 +298,7 @@ def handle_message(event):
 
     # ★ 優化點 2: 答題過程全部改用 reply_token (免費)
     if progress == 1:
-        if user_message == "C":
+        if user_message == "B":
             state['progress'] = 2
             send_question_2(reply_token)
         else:
@@ -368,7 +308,7 @@ def handle_message(event):
             line_bot_api.reply_message(reply_token, messages=[image_message, text_message])
 
     elif progress == 2:
-        if user_message == "A":
+        if user_message == "C":
             state['progress'] = 3
             send_question_3(reply_token)
         else:
@@ -379,35 +319,7 @@ def handle_message(event):
 
     elif progress == 4:
         if user_message == "我已拍照打卡完畢":
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="挑戰完成！正在為您製作專屬成績單...請稍候片刻 ✨"))
-            
-            # 2. 準備生成成績單所需的資料
-            state_data = user_states.get(user_id, {})
-            player_name = state_data.get('name', '挑戰者')
-            start_time = state_data.get('start_time', datetime.datetime.now(pytz.timezone('Asia/Taipei')))
-            time_spent = round((datetime.datetime.now(pytz.timezone('Asia/Taipei')) - start_time).total_seconds(), 2)
-
-            # 3. 生成成績單
-            report_card_url = create_report_card(player_name, time_spent)
-
-            # 4. 記錄到 Google Sheet
-            record_result = record_completion(user_id)
-            state['progress'] = 5 # 進入等待兌換狀態
-
-            # 5. 準備最終要發送的訊息
-            messages_to_send = []
-            if report_card_url:
-                messages_to_send.append(ImageSendMessage(original_content_url=report_card_url, preview_image_url=report_card_url))
-            
-            if record_result:
-                final_flex = get_final_redemption_menu(record_result)
-                messages_to_send.append(FlexSendMessage(alt_text="恭喜通關！", contents=final_flex))
-            else:
-                messages_to_send.append(TextSendMessage(text="恭喜通關！但在記錄成績時發生錯誤。"))
-
-            # 6. 使用 push_message 發送 (因為 reply_token 已用掉)
-            if messages_to_send:
-                line_bot_api.push_message(user_id, messages=messages_to_send)
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="挑戰完成！✨"))
         else:
             pass # 如果在第四關亂打字，不回應
             
