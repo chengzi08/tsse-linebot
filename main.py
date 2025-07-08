@@ -242,8 +242,11 @@ def handle_message(event):
     # ★    這裡是新增的排行榜觸發點    ★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★
     elif user_message == "排行榜":
-        # 呼叫我們剛剛建立的函式來取得排行榜文字
         leaderboard_text = get_leaderboard()
+        # 增加防呆機制
+        if not leaderboard_text:
+            leaderboard_text = "無法取得排行榜資料，請稍後再試。"
+        
         line_bot_api.reply_message(
             reply_token,
             TextSendMessage(text=leaderboard_text)
@@ -256,14 +259,15 @@ def handle_message(event):
         line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
         return
 
-    elif user_message == "活動介紹":
-        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg?raw=true"
-        line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
+    elif user_message == "平日常態活動":
+        reply_text = "6666" 
+        line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
         
-    elif user_message == "平日常態活動":
-        reply_text = "" 
-        line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
+    elif user_message == "活動介紹":
+        
+        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg?raw=true"
+        line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
         return
     
     state = user_states.get(user_id)
