@@ -11,6 +11,10 @@ from linebot.models import (
 )
 
 import gspread
+from PIL import Image, ImageDraw, ImageFont # ★ 新增
+import io # ★ 新增
+import requests # ★ 新增
+import json # ★ 新增
 
 app = Flask(__name__)
 
@@ -124,6 +128,57 @@ def redeem_prize(user_id):
     except Exception as e:
         print(f"兌獎時發生錯誤: {e}")
         return None
+
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# ★    全新功能：動態生成個人化成績單函式         ★
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+def create_report_card(player_name, time_spent):
+    try:
+        # 1. 開啟背景圖範本
+        template_path = "report_card_template.png" 
+        img = Image.open(template_path)
+        draw = ImageDraw.Draw(img)
+
+        # 2. 載入字型檔
+        font_path = "NotoSansTC-Bold.otf" 
+        name_font = ImageFont.truetype(font_path, size=48)
+        time_font = ImageFont.truetype(font_path, size=36)
+
+        # 3. 準備文字內容
+        name_text = f"玩家：{player_name}"
+        time_text = f"通關時間：{time_spent} 秒"
+
+        # 4. ★★★ 您需要手動調整這裡的 (x, y) 座標 ★★★
+        # (0,0) 是圖片左上角，請根據您的背景圖調整文字位置
+        draw.text((100, 150), name_text, font=name_font, fill=(255, 255, 255)) # 白色字
+        draw.text((100, 220), time_text, font=time_font, fill=(255, 255, 255)) # 白色字
+
+        # 5. 在記憶體中儲存圖片，準備上傳
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+
+        # 6. 上傳到 Postimages
+        print("正在上傳成績單到 Postimages...")
+        response = requests.post("https://postimages.org/json/v1/upload", files={'file': ('report_card.png', img_byte_arr, 'image/png')})
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('status') == 'OK':
+                image_url = result.get('url')
+                print(f"成績單上傳成功！URL: {image_url}")
+                return image_url
+        
+        print(f"Postimages 上傳失敗: {response.text}")
+        return None
+
+    except FileNotFoundError:
+        print("錯誤：找不到 report_card_template.png 或 NotoSansTC-Bold.otf！")
+        return None
+    except Exception as e:
+        print(f"生成成績單時發生錯誤: {e}")
+        return None
+
 
 # ★★★★★★★★★★★★★★★★★★★★★★★★★
 # ★    這裡是新增的排行榜核心函式    ★
@@ -242,11 +297,8 @@ def handle_message(event):
     # ★    這裡是新增的排行榜觸發點    ★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★
     elif user_message == "排行榜":
+        # 呼叫我們剛剛建立的函式來取得排行榜文字
         leaderboard_text = get_leaderboard()
-        # 增加防呆機制
-        if not leaderboard_text:
-            leaderboard_text = "無法取得排行榜資料，請稍後再試。"
-        
         line_bot_api.reply_message(
             reply_token,
             TextSendMessage(text=leaderboard_text)
@@ -259,15 +311,14 @@ def handle_message(event):
         line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
         return
 
-    elif user_message == "平日常態活動":
-        reply_text = "6666" 
-        line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
+    elif user_message == "活動介紹":
+        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg?raw=true"
+        line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
         return
         
-    elif user_message == "活動介紹":
-        
-        image_url = "https://raw.github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg"
-        line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
+    elif user_message == "平日常態活動":
+        reply_text = "" 
+        line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
     
     state = user_states.get(user_id)
