@@ -172,7 +172,7 @@ def handle_message(event):
         return
 
     elif user_message == "週末限定活動報名":
-        flex_link_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "週末限定活動", "weight": "bold", "size": "xl"}, {"type": "text", "text": "名額有限，請點擊下方按鈕立即報名！", "margin": "md", "wrap": True}, {"type": "separator", "margin": "xxl"}, {"type": "button", "style": "primary", "color": "#905c44", "margin": "xl", "height": "sm", "action": {"type": "uri", "label": "點我前往報名", "uri": "https://docs.google.com/forms/d/e/1FAIpQLSc28lR_7rCNwy7JShQBS9ags6DL0NinKXIUIDJ4dv6YwAIzuA/viewform?usp=dialog"}}]}}
+        flex_link_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "週末限定活動", "weight": "bold", "size": "xl"}, {"type": "text", "text": "名額有限，請點擊下方按鈕立即報名！", "margin": "md", "wrap": True}, {"type": "separator", "margin": "xxl"}, {"type": "button", "style": "primary",  "color": "#4D96FF", "margin": "xl", "height": "sm", "action": {"type": "uri", "label": "點我前往報名", "uri": "https://docs.google.com/forms/d/e/1FAIpQLSc28lR_7rCNwy7JShQBS9ags6DL0NinKXIUIDJ4dv6YwAIzuA/viewform?usp=dialog"}}]}}
         line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
         return
 
@@ -220,12 +220,19 @@ def handle_message(event):
         else:
             # 定義答錯時要傳送的圖片網址
             # 注意：要使用 raw 版本的網址才能正確顯示
-            image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/Q1-A.jpg?raw=true"
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="再仔細看看!!!～"))
-            # 建立圖片訊息物件
-            wrong_answer_message = ImageSendMessage(
+           image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
+            image_message = ImageSendMessage(
                 original_content_url=image_url,
                 preview_image_url=image_url
+            )
+            
+            # 2. 準備文字訊息
+            text_message = TextSendMessage(text="再仔細看看!!!～")
+            
+            # 3. 將兩個訊息放進一個 list，並一起傳送
+            line_bot_api.reply_message(
+                reply_token,
+                messages=[image_message, text_message] # 注意這裡是 messages=[...]
             )
             
             # 使用 reply_message 傳送圖片
@@ -279,11 +286,11 @@ def send_start_menu(reply_token):
 # ★ 修改點 ★
 def get_question_1_flex():
     # 注意：請將圖片 URL 換成您自己的
-    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-V1.jpg", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡一：找找我在哪", "weight": "bold", "size": "lg"}, {"type": "text", "text": "找到這本神秘的大書，從左邊翻開數第8頁，數數看，圖片中有幾隻雞呢?", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "action": {"type": "message", "color": "#905c44", "label": "A：５隻雞", "text": "A"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "B：７隻雞", "text": "B"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "C：９隻雞", "text": "C"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "D：沒有雞", "text": "D"}}]}]}}
+    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-V1.jpg", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡一：找找我在哪", "weight": "bold", "size": "lg"}, {"type": "text", "text": "找到這本神秘的大書，從左邊翻開數第8頁，數數看，圖片中有幾隻雞呢?", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary",  "color": "#4D96FF","action": {"type": "message", "label": "A：５隻雞", "text": "A"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "B：７隻雞", "text": "B"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "C：９隻雞", "text": "C"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "D：沒有雞", "text": "D"}}]}]}}
 
 def send_question_2(reply_token):
     # 注意：請將圖片 URL 換成您自己的
-    flex_message = {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q2-V1.jpg", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡二：尋找寶藏 ─ 拼圖遊戲", "weight": "bold", "size": "lg"}, {"type": "text", "text": "手腦並用完成拼圖挑戰，拼出藏寶路線圖。\n請問王博士得到的寶藏是什麼呢？", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "action": {"type": "message", "label": "A", "text": "A"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "B", "text": "B"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "C", "text": "C"}}, {"type": "button", "style": "primary", "action": {"type": "message", "label": "D", "text": "D"}}]}]}}
+    flex_message = {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q2-V1.jpg", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡二：尋找寶藏 ─ 拼圖遊戲", "weight": "bold", "size": "lg"}, {"type": "text", "text": "手腦並用完成拼圖挑戰，拼出藏寶路線圖。\n請問王博士得到的寶藏是什麼呢？", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "草莓", "text": "A"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "水槍", "text": "B"}}, {"type": "button", "style": "primary",  "color": "#4D96FF","action": {"type": "message", "label": "棒棒糖", "text": "C"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "小兔子", "text": "D"}}]}]}}
     line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="第二關", contents=flex_message))
 
 def send_question_3(reply_token):
@@ -297,13 +304,13 @@ def send_question_3(reply_token):
 
 def get_question_4_flex():
     # 注意：請將圖片 URL 換成您自己的
-    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q4-V1.png", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡四：台塑生醫 x 飛天小女警", "weight": "bold", "size": "lg"}, {"type": "text", "text": "在商品銷售區找到聯名商品，拍張照並上傳到社群，打卡在台塑生醫健康悠活館，並出示給販售區工作人員，即可得到飛天小女警的扇子！", "margin": "md", "wrap": True}]}, "footer": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "我已拍照打卡完畢，請工作人員審核並點選", "wrap": True, "align": "center", "size": "sm"}, {"type": "button", "style": "primary", "margin": "md", "action": {"type": "message", "label": "確認審核", "text": "我已拍照打卡完畢"}}]}}
+    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q4-V1.png", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡四：台塑生醫 x 飛天小女警", "weight": "bold", "size": "lg"}, {"type": "text", "text": "在商品銷售區找到聯名商品，拍張照並上傳到社群，打卡在台塑生醫健康悠活館，並出示給販售區工作人員，即可得到飛天小女警的扇子！", "margin": "md", "wrap": True}]}, "footer": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "我已拍照打卡完畢，請工作人員審核並點選", "wrap": True, "align": "center", "size": "sm"}, {"type": "button", "style": "primary",  "color": "#4D96FF", "margin": "md", "action": {"type": "message", "label": "確認審核", "text": "我已拍照打卡完畢"}}]}}
 
 def get_final_redemption_menu(record_result):
     title = "🎉 恭喜你完成所有挑戰！🎊" if record_result['is_first'] else "🎉 挑戰成功！🎉"
     body_text = "您的成績已成功記錄！" if record_result['is_first'] else f"這是您的第 {record_result['count']} 次通關紀錄！"
     
-    return {"type": "bubble", "body": {"type": "box", "layout": "vertical", "spacing": "md", "contents": [{"type": "text", "text": title, "weight": "bold", "size": "xl", "wrap": True, "align": "center"}, {"type": "text", "text": body_text, "align": "center", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "text", "text": "您的兌換碼為【PASS】。", "margin": "lg", "weight": "bold", "align": "center"}, {"type": "text", "text": "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）", "wrap": True, "size": "xs", "align": "center", "color": "#888888"}, {"type": "button", "style": "primary", "margin": "xl", "action": {"type": "message", "label": "兌換獎項", "text": "兌換獎項"}}]}}
+    return {"type": "bubble", "body": {"type": "box", "layout": "vertical", "spacing": "md", "contents": [{"type": "text", "text": title, "weight": "bold", "size": "xl", "wrap": True, "align": "center"}, {"type": "text", "text": body_text, "align": "center", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "text", "text": "您的兌換碼為【PASS】。", "margin": "lg", "weight": "bold", "align": "center"}, {"type": "text", "text": "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）", "wrap": True, "size": "xs", "align": "center", "color": "#888888"}, {"type": "button", "style": "primary", "color": "#4D96FF", "margin": "xl", "action": {"type": "message", "label": "兌換獎項", "text": "兌換獎項"}}]}}
 
 # ====== 啟動 ======
 if __name__ == "__main__":
