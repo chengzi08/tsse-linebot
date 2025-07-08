@@ -134,43 +134,52 @@ def redeem_prize(user_id):
 # ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 def create_report_card(player_name, time_spent):
     try:
-        # 1. 開啟背景圖範本
-        template_path = "report_card_template.jpg" 
+        template_path = "report_card_template.jpg" # 已修正檔名
         img = Image.open(template_path)
         draw = ImageDraw.Draw(img)
 
-        # 2. 載入字型檔
         font_path = "NotoSansTC-Bold.otf" 
         name_font = ImageFont.truetype(font_path, size=48)
         time_font = ImageFont.truetype(font_path, size=36)
 
-        # 3. 準備文字內容
         name_text = f"玩家：{player_name}"
         time_text = f"通關時間：{time_spent} 秒"
 
-        # 4. ★★★ 您需要手動調整這裡的 (x, y) 座標 ★★★
-        # (0,0) 是圖片左上角，請根據您的背景圖調整文字位置
-        draw.text((100, 150), name_text, font=name_font, fill=(255, 255, 255)) # 白色字
-        draw.text((100, 220), time_text, font=time_font, fill=(255, 255, 255)) # 白色字
+        draw.text((100, 150), name_text, font=name_font, fill=(255, 255, 255))
+        draw.text((100, 220), time_text, font=time_font, fill=(255, 255, 255))
 
-        # 5. 在記憶體中儲存圖片，準備上傳
         img_byte_arr = io.BytesIO()
         img.save(img_byte_arr, format='PNG')
         img_byte_arr.seek(0)
 
-        # 6. 上傳到 Postimages
-        print("正在上傳成績單到 Postimages...")
-        response = requests.post("https://postimages.org/json/v1/upload", files={'file': ('report_card.png', img_byte_arr, 'image/png')})
+        print("正在上傳成績單到 freeimage.host...")
+        
+        # freeimage.host 的 API 端點
+        upload_url = "https://freeimage.host/api/1/upload"
+        
+        # 準備上傳的資料
+        payload = {
+            'key': FREEIMAGE_API_KEY,
+            'action': 'upload',
+            'format': 'json'
+        }
+        files = {'source': ('report_card.png', img_byte_arr, 'image/png')}
+        
+        # 發送 POST 請求
+        response = requests.post(upload_url, data=payload, files=files)
         
         if response.status_code == 200:
             result = response.json()
-            if result.get('status') == 'OK':
-                image_url = result.get('url')
+            if result.get('status_code') == 200:
+                image_url = result.get('image', {}).get('url')
                 print(f"成績單上傳成功！URL: {image_url}")
                 return image_url
-        
-        print(f"Postimages 上傳失敗: {response.text}")
-        return None
+            else:
+                print(f"Freeimage 上傳失敗: {result.get('error', {}).get('message')}")
+                return None
+        else:
+            print(f"Freeimage API 請求失敗，狀態碼: {response.status_code}")
+            return None
 
     except FileNotFoundError:
         print("錯誤：找不到 report_card_template.jpg 或 NotoSansTC-Bold.otf！")
