@@ -124,7 +124,75 @@ def redeem_prize(user_id):
     except Exception as e:
         print(f"兌獎時發生錯誤: {e}")
         return None
-    
+
+# ★★★★★★★★★★★★★★★★★★★★★★★★★
+# ★    這裡是新增的排行榜核心函式    ★
+# ★★★★★★★★★★★★★★★★★★★★★★★★★
+
+def get_leaderboard():
+    """
+    從 Google Sheet 讀取資料，產生排行榜文字。
+    回傳格式化後的文字，如果出錯或沒有資料則回傳 None。
+    """
+    if not worksheet:
+        print("排行榜功能：Worksheet 未初始化。")
+        return "抱歉，排行榜功能暫時無法使用，請聯繫管理員。"
+
+    try:
+        # 取得所有紀錄 (假設第一行為標頭，所以從第二行開始)
+        # worksheet.get_all_records() 會將每一行轉成字典，很方便
+        records = worksheet.get_all_records()
+
+        if not records:
+            return "目前還沒有人完成挑戰，快來搶頭香吧！🏆"
+
+        # 進行排序
+        # 我們要根據 '總花費時間(秒)' 這個欄位來排序
+        # 使用 lambda 函式來指定排序的鍵 (key)
+        # sorted() 預設是升序 (時間越少越前面)，正是我們想要的
+        # 我們只取每個玩家的 '首次通關' 紀錄來排名
+        
+        # 篩選出首次通關的紀錄 (G欄為 '是')
+        first_completion_records = [
+            r for r in records if str(r.get('是否為首次通關(G)', '否')).strip() == '是'
+        ]
+
+        if not first_completion_records:
+            return "目前還沒有玩家首次完成挑戰！"
+            
+        # 根據 '總花費時間(秒)' (D欄) 進行排序
+        # 確保時間是數字型態
+        for record in first_completion_records:
+            try:
+                record['總花費時間(秒)'] = float(record['總花費時間(秒)'])
+            except (ValueError, TypeError):
+                # 如果時間格式不對，給一個極大值，讓它排到後面
+                record['總花費時間(秒)'] = float('inf')
+
+        sorted_records = sorted(first_completion_records, key=lambda x: x['總花f費時間(秒)'])
+
+        # 取出前 5 名
+        top_5_records = sorted_records[:5]
+
+        # 格式化輸出文字
+        leaderboard_text = "🏆 積分計時排行榜 🏆\n\n"
+        rank_emojis = ["🥇", "🥈", "🥉", "⒋", "⒌"]
+
+        for i, record in enumerate(top_5_records):
+            rank = rank_emojis[i]
+            # 從記錄中取得 '玩家名稱(B)' 和 '總花費時間(秒)(D)'
+            name = record.get('玩家名稱(B)', '匿名玩家')
+            time_spent = record.get('總花費時間(秒)', 'N/A')
+            
+            # 加上名次、名稱和時間
+            leaderboard_text += f"{rank} {name} - {time_spent} 秒\n"
+
+        return leaderboard_text.strip()
+
+    except Exception as e:
+        print(f"產生排行榜時發生錯誤: {e}")
+        return "讀取排行榜時發生了一點小問題，請稍後再試！"
+
 # ====== Webhook 入口 (不變) ======
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -171,18 +239,31 @@ def handle_message(event):
         line_bot_api.reply_message(reply_token, TextSendMessage(text="歡迎來到問答挑戰！\n請輸入您想在遊戲中使用的名稱："))
         return
 
+    # ★★★★★★★★★★★★★★★★★★★★★★★★★
+    # ★    這裡是新增的排行榜觸發點    ★
+    # ★★★★★★★★★★★★★★★★★★★★★★★★★
+    elif user_message == "排行榜":
+        # 呼叫我們剛剛建立的函式來取得排行榜文字
+        leaderboard_text = get_leaderboard()
+        line_bot_api.reply_message(
+            reply_token,
+            TextSendMessage(text=leaderboard_text)
+        )
+        return
+
+
     elif user_message == "週末限定活動報名":
         flex_link_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "週末限定活動", "weight": "bold", "size": "xl"}, {"type": "text", "text": "名額有限，請點擊下方按鈕立即報名！", "margin": "md", "wrap": True}, {"type": "separator", "margin": "xxl"}, {"type": "button", "style": "primary",  "color": "#4D96FF", "margin": "xl", "height": "sm", "action": {"type": "uri", "label": "點我前往報名", "uri": "https://docs.google.com/forms/d/e/1FAIpQLSc28lR_7rCNwy7JShQBS9ags6DL0NinKXIUIDJ4dv6YwAIzuA/viewform?usp=dialog"}}]}}
         line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
         return
 
-    elif user_message == "平日常態活動":
-        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true"
+    elif user_message == "活動介紹":
+        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg?raw=true"
         line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
         return
         
-    elif user_message == "活動介紹":
-        reply_text = "活動介紹還沒好再等等啦\n" * 8
+    elif user_message == "平日常態活動":
+        reply_text = "" 
         line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
     
