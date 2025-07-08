@@ -144,6 +144,7 @@ def handle_message(event):
     reply_token = event.reply_token
 
     # 最高層級指令 (不變)
+    # 最高層級指令
     if user_message == "開始遊戲":
         if user_id in user_states:
             del user_states[user_id]
@@ -152,15 +153,18 @@ def handle_message(event):
         return
 
     elif user_message == "週末限定活動報名":
-        # ... (此處程式碼不變，省略)
+        flex_link_message = {"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "週末限定活動", "weight": "bold", "size": "xl"}, {"type": "text", "text": "名額有限，請點擊下方按鈕立即報名！", "margin": "md", "wrap": True}, {"type": "separator", "margin": "xxl"}, {"type": "button", "style": "primary", "color": "#905c44", "margin": "xl", "height": "sm", "action": {"type": "uri", "label": "點我前往報名", "uri": "https://docs.google.com/forms/d/e/1FAIpQLSc28lR_7rCNwy7JShQBS9ags6DL0NinKXIUIDJ4dv6YwAIzuA/viewform?usp=dialog"}}]}}
+        line_bot_api.reply_message(reply_token, FlexSendMessage(alt_text="週末限定活動報名連結", contents=flex_link_message))
         return
 
     elif user_message == "平日常態活動":
-        # ... (此處程式碼不變，省略)
+        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/Q2.png?raw=true"
+        line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
         return
         
     elif user_message == "活動介紹":
-        # ... (此處程式碼不變，省略)
+        reply_text = "活動介紹還沒好再等等啦\n" * 8
+        line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
     
     state = user_states.get(user_id)
@@ -176,12 +180,21 @@ def handle_message(event):
         return
 
     if user_message == "兌換獎項" and progress == 0:
-        # ... (兌換邏輯不變)
+        state['progress'] = -2
+        line_bot_api.reply_message(reply_token, TextSendMessage(text="請輸入兌換碼："))
         return
 
+
     if progress == -2:
-        # ... (兌換碼邏輯不變)
+        if user_message == "PASS":
+            result = redeem_prize(user_id)
+            reply_text = {'success': "獎項兌換成功！", 'already_redeemed': "您已兌換過獎品囉！", 'not_found': "您尚未完成遊戲挑戰，無法兌換獎品喔！"}.get(result, "兌換時發生錯誤，請聯繫管理員。")
+            state['progress'] = 0
+            line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text))
+        else:
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="兌換碼錯誤，請重新輸入。"))
         return
+
     
     # ★ 優化點 1: 輸入姓名後，合併回覆歡迎詞和第一題 (免費)
     if progress == -1:
@@ -225,16 +238,28 @@ def handle_message(event):
     
     elif progress == 4:
         if user_message == "B":
-            # (此處邏輯不變，本來就是用 reply)
+            # 答對第四題，直接通關
             record_result = record_completion(user_id)
-            # ... (回覆訊息邏輯省略) ...
+            if record_result:
+                redemption_info = (
+                    "\n\n"
+                    "您的兌換碼為【PASS】。\n"
+                    "（請將此畫面出示給關主，由關主為您操作兌換，請勿自行輸入）"
+                )
+                if record_result['is_first']:
+                    final_message = "🎉 恭喜你完成所有挑戰！🎊\n您的成績已成功記錄！" + redemption_info
+                else:
+                    final_message = f"🎉 挑戰成功！這是您的第 {record_result['count']} 次通關紀錄！" + redemption_info
+            else:
+                final_message = "恭喜通關！但在記錄成績時發生錯誤，請聯繫管理員。"
+            
+            line_bot_api.reply_message(reply_token, TextSendMessage(text=final_message))
             
             # 結束後清除狀態
             if user_id in user_states:
                 del user_states[user_id]
         else:
             line_bot_api.reply_message(reply_token, TextSendMessage(text="最後一題答錯了，再想想看～"))
-
 
 # ====== ★ 題目與選單函式 (修改為使用 reply_token) ★ ======
 def send_start_menu(reply_token):
