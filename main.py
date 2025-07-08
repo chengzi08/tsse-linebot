@@ -135,7 +135,7 @@ def redeem_prize(user_id):
 def create_report_card(player_name, time_spent):
     try:
         # 1. 開啟背景圖範本
-        template_path = "report_card_template.png" 
+        template_path = "report_card_template.jpg" 
         img = Image.open(template_path)
         draw = ImageDraw.Draw(img)
 
@@ -173,7 +173,7 @@ def create_report_card(player_name, time_spent):
         return None
 
     except FileNotFoundError:
-        print("錯誤：找不到 report_card_template.png 或 NotoSansTC-Bold.otf！")
+        print("錯誤：找不到 report_card_template.jpg 或 NotoSansTC-Bold.otf！")
         return None
     except Exception as e:
         print(f"生成成績單時發生錯誤: {e}")
