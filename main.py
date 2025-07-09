@@ -11,10 +11,10 @@ from linebot.models import (
 )
 
 import gspread
-from PIL import Image, ImageDraw, ImageFont # ★ 新增
-import io # ★ 新增
-import requests # ★ 新增
-import json # ★ 新增
+from PIL import Image, ImageDraw, ImageFont 
+import io 
+import requests 
+import json 
 
 app = Flask(__name__)
 
@@ -45,7 +45,7 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # ====== 使用者狀態記錄 ======
 user_states = {}
 
-# ====== 核心函式：取得玩家資訊 (不變) ======
+# ====== 核心函式：取得玩家資訊  ======
 def get_player_info(user_id):
     global worksheet
     if not worksheet: return None
@@ -67,7 +67,7 @@ def get_player_info(user_id):
         print(f"獲取玩家資訊時出錯: {e}")
         return None
 
-# ====== 核心函式：寫入紀錄 (不變) ======
+# ====== 核心函式：寫入紀錄  ======
 def record_completion(user_id):
     global worksheet
     if not worksheet: return None
@@ -129,13 +129,9 @@ def redeem_prize(user_id):
         print(f"兌獎時發生錯誤: {e}")
         return None
 
-# ★★★★★★★★★★★★★★★★★★★★★★★★★
-# ★    這裡是新增的排行榜核心函式    ★
-# ★★★★★★★★★★★★★★★★★★★★★★★★★
-
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-# ★    這裡是重構後、更穩健的排行榜核心函式 (最終版)    ★
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★
+# ★    排行榜核心函式 (最終版)    ★
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★
 
 def get_leaderboard():
     """
@@ -232,7 +228,6 @@ def handle_message(event):
     user_message = event.message.text.strip()
     reply_token = event.reply_token
 
-    # 最高層級指令 (不變)
     # 最高層級指令
     if user_message == "開始遊戲":
         # 如果玩家中途重來，清除舊狀態
@@ -243,7 +238,15 @@ def handle_message(event):
         # 呼叫新的選單函式
         send_game_entry_menu(reply_token)
         return
-
+    if user_message == "排行榜":
+            print("====== 觸發排行榜功能 ======")
+            leaderboard_text = get_leaderboard()
+            print(f"排行榜函式回傳內容: {leaderboard_text}")
+            if not leaderboard_text:
+                leaderboard_text = "抱歉，目前無法取得排行榜資料。"
+            line_bot_api.reply_message(reply_token, TextSendMessage(text=leaderboard_text))
+            print("====== 排行榜訊息已發送 ======")
+            return
     # ★★★★★★★★★★★★★★★★★★★★★★★★★
     # ★     這裡是新增的「進入遊戲」邏輯   ★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★
