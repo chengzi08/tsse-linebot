@@ -261,7 +261,7 @@ def handle_message(event):
         return
 
     elif user_message == "活動介紹":
-        image_url = "https://raw.github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg"
+        image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/ation-v2.jpg"
         line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
         return
         
