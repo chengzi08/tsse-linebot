@@ -236,22 +236,27 @@ def handle_message(event):
     # 最高層級指令 (不變)
     # 最高層級指令
     if user_message == "開始遊戲":
+        # 如果玩家中途重來，清除舊狀態
         if user_id in user_states:
             del user_states[user_id]
-        user_states[user_id] = {'progress': -1}
-        line_bot_api.reply_message(reply_token, TextSendMessage(text="歡迎來到問答挑戰！\n請輸入您想在遊戲中使用的名稱："))
+        # 設定一個初始狀態，代表還沒進入遊戲
+        user_states[user_id] = {'progress': 0}
+        # 呼叫新的選單函式
+        send_game_entry_menu(reply_token)
         return
 
     # ★★★★★★★★★★★★★★★★★★★★★★★★★
-    # ★    這裡是新增的排行榜觸發點    ★
+    # ★     這裡是新增的「進入遊戲」邏輯   ★
     # ★★★★★★★★★★★★★★★★★★★★★★★★★
-    elif user_message == "排行榜":
-        # 呼叫我們剛剛建立的函式來取得排行榜文字
-        leaderboard_text = get_leaderboard()
-        line_bot_api.reply_message(
-            reply_token,
-            TextSendMessage(text=leaderboard_text)
-        )
+    elif user_message == "進入遊戲":
+        state = user_states.get(user_id)
+        # 確保玩家是從「開始遊戲」進來的 (progress 應為 0)
+        if state and state.get('progress') == 0:
+            state['progress'] = -1 # 將進度設為 -1 (等待姓名)
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="歡迎來到問答挑戰！\n請輸入您想在遊戲中使用的名稱："))
+        else:
+            # 如果玩家亂打「進入遊戲」，引導他先「開始遊戲」
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="請先輸入「開始遊戲」喔！"))
         return
 
 
@@ -361,6 +366,65 @@ def handle_message(event):
 # ====== ★ 題目與選單函式 (修改為使用 reply_token) ★ ======
 def send_start_menu(reply_token):
     flex_message = FlexSendMessage(alt_text='開始選單', contents={"type": "bubble", "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "歡迎！", "weight": "bold", "size": "xl"}, {"type": "text", "text": "請選擇您的下一步動作：", "margin": "md"}, {"type": "button", "action": {"type": "message", "label": "進入遊戲", "text": "進入遊戲"}, "style": "primary", "color": "#5A94C7", "margin": "xxl"}, {"type": "button", "action": {"type": "message", "label": "兌換獎項", "text": "兌換獎項"}, "style": "secondary", "margin": "md"}]}})
+    line_bot_api.reply_message(reply_token, flex_message)
+
+def send_game_entry_menu(reply_token):
+    """
+    發送包含「進入遊戲」和「排行榜」按鈕的 Flex Message。
+    """
+    flex_message = FlexSendMessage(
+        alt_text='歡迎來到問答挑戰',
+        contents={
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "歡迎來到問答挑戰！",
+                        "weight": "bold",
+                        "size": "xl"
+                    },
+                    {
+                        "type": "text",
+                        "text": "準備好就進入遊戲，或先看看高手們的紀錄！",
+                        "margin": "md",
+                        "wrap": True
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "margin": "xxl",
+                        "spacing": "sm",
+                        "contents": [
+                            {
+                                "type": "button",
+                                "action": {
+                                    "type": "message",
+                                    "label": "進入遊戲",
+                                    "text": "進入遊戲"
+                                },
+                                "style": "primary",
+                                "color": "#4D96FF",
+                                "height": "sm"
+                            },
+                            {
+                                "type": "button",
+                                "action": {
+                                    "type": "message",
+                                    "label": "排行榜",
+                                    "text": "排行榜"
+                                },
+                                "style": "secondary",
+                                "height": "sm"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    )
     line_bot_api.reply_message(reply_token, flex_message)
 
 # ★ 新增輔助函式，用於取得第一題的 Flex JSON
