@@ -133,52 +133,48 @@ def redeem_prize(user_id):
 # ★    這裡是新增的排行榜核心函式    ★
 # ★★★★★★★★★★★★★★★★★★★★★★★★★
 
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# ★    這裡是重構後、更穩健的排行榜核心函式 (最終版)    ★
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
 def get_leaderboard():
     """
     從 Google Sheet 讀取資料，產生排行榜文字。
-    回傳格式化後的文字，如果出錯或沒有資料則回傳 None。
+    使用欄位索引來讀取，避免因標頭名稱不符而出錯。
     """
     if not worksheet:
         print("排行榜功能：Worksheet 未初始化。")
         return "抱歉，排行榜功能暫時無法使用，請聯繫管理員。"
 
     try:
-        # 取得所有紀錄 (假設第一行為標頭，所以從第二行開始)
-        # worksheet.get_all_records() 會將每一行轉成字典，很方便
-        records = worksheet.get_all_records()
+        # 1. 讀取整個工作表的所有值 (除了第一行標頭)
+        all_values = worksheet.get_all_values()[1:]
 
-        if not records:
+        if not all_values:
             return "目前還沒有人完成挑戰，快來搶頭香吧！🏆"
 
-         # 清理所有記錄的鍵，去除前後空格
-        cleaned_records = []
-        for record in records:
-            cleaned_record = {key.strip(): value for key, value in record.items()}
-            cleaned_records.append(cleaned_record)
+        # 2. 篩選出首次通關的紀錄
+        #    我們假設 B欄(索引1)是名稱，D欄(索引3)是時間，G欄(索引6)是首次通關標記
+        first_completion_records = []
+        for row in all_values:
+            # 檢查 G 欄 (索引 6) 是否為 '是'
+            # 並且檢查 D 欄 (索引 3) 是否有時間值
+            if len(row) > 6 and row[6].strip() == '是' and len(row) > 3 and row[3]:
+                try:
+                    name = row[1]
+                    time_spent = float(row[3])
+                    first_completion_records.append({'name': name, 'time': time_spent})
+                except (ValueError, IndexError):
+                    # 如果時間格式不對或該行資料不完整，就跳過這筆紀錄
+                    continue
         
-        # 接下來都使用 cleaned_records
-        records = cleaned_records
-
-        # 現在，在這裡定義您 Sheet 中確切的欄位名稱 (從 Sheet 複製貼上)
-        TIME_COLUMN_HEADER = '總花費時間(秒)' # <-- 把這裡換成您從 Sheet 複製的標頭
-        NAME_COLUMN_HEADER = '玩家名稱(B)'   # <-- 確認這個也正確
-        FIRST_TIME_COLUMN_HEADER = '是否為首次通關(G)' # <-- 確認這個也正確
-        
-        first_completion_records = [
-            r for r in records if str(r.get(FIRST_TIME_COLUMN_HEADER, '否')).strip() == '是'
-        ]
-
         if not first_completion_records:
             return "目前還沒有玩家首次完成挑戰！"
             
-        for record in first_completion_records:
-            try:
-                record[TIME_COLUMN_HEADER] = float(record[TIME_COLUMN_HEADER])
-            except (ValueError, TypeError):
-                record[TIME_COLUMN_HEADER] = float('inf')
+        # 3. 根據時間進行排序 (時間越少越前面)
+        sorted_records = sorted(first_completion_records, key=lambda x: x['time'])
 
-        sorted_records = sorted(first_completion_records, key=lambda x: x[TIME_COLUMN_HEADER])
-
+        # 4. 取出前 5 名並格式化輸出文字
         top_5_records = sorted_records[:5]
 
         leaderboard_text = "🏆 積分計時排行榜 🏆\n\n"
@@ -186,14 +182,17 @@ def get_leaderboard():
 
         for i, record in enumerate(top_5_records):
             rank = rank_emojis[i]
-            name = record.get(NAME_COLUMN_HEADER, '匿名玩家')
-            time_spent = record.get(TIME_COLUMN_HEADER, 'N/A')
+            name = record.get('name', '匿名玩家')
+            time_spent = record.get('time', 'N/A')
             leaderboard_text += f"{rank} {name} - {time_spent} 秒\n"
 
         return leaderboard_text.strip()
 
+    except gspread.exceptions.APIError as e:
+        print(f"Google Sheets API 錯誤: {e}")
+        return "讀取排行榜時發生 API 錯誤，請檢查權限或稍後再試。"
     except Exception as e:
-        print(f"產生排行榜時發生錯誤: {e}")
+        print(f"產生排行榜時發生未預期的錯誤: {e}")
         return "讀取排行榜時發生了一點小問題，請稍後再試！"
 
 # ====== Webhook 入口 (不變) ======
