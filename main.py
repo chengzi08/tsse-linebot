@@ -261,12 +261,12 @@ def handle_message(event):
         return
 
     elif user_message == "活動介紹":
-        image_url = "https://github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg?raw=true"
+        image_url = "https://raw.github.com/chengzi08/tsse-linebot/blob/main/ation-v2.jpg"
         line_bot_api.reply_message(reply_token, ImageSendMessage(original_content_url=image_url, preview_image_url=image_url))
         return
         
     elif user_message == "平日常態活動":
-        reply_text = "" 
+        reply_text = "55667788" 
         line_bot_api.reply_message(reply_token, TextSendMessage(text=reply_text.strip()))
         return
     
