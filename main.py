@@ -322,7 +322,7 @@ def handle_message(event):
             image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q2-A.jpg"
             image_message = ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
             text_message = TextSendMessage(text="答錯了！抵達萬花筒區域就可以找到正確解答!")
-             line_bot_api.reply_message(reply_token, messages=[image_message, text_message])
+            line_bot_api.reply_message(reply_token, messages=[image_message, text_message])
 
     elif progress == 3:
         pass
