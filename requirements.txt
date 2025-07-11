@@ -3,5 +3,3 @@ line-bot-sdk
 gspread
 pytz
 gunicorn
-requests
-Pillow
