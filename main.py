@@ -2,7 +2,6 @@ import os
 import pytz
 import datetime
 from flask import Flask, request, abort
-
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -11,10 +10,10 @@ from linebot.models import (
 )
 
 import gspread
-from PIL import Image, ImageDraw, ImageFont 
-import io 
-import requests 
-import json 
+# from PIL import Image, ImageDraw, ImageFont 
+# import io 
+# import requests 
+# import json 
 
 app = Flask(__name__)
 
