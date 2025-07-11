@@ -311,7 +311,7 @@ def handle_message(event):
         else:
             image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
             image_message = ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
-            text_message = TextSendMessage(text="再仔細看看!!!～")
+            text_message = TextSendMessage(text="再仔細看看!!!在第10-15頁之間!～")
             line_bot_api.reply_message(reply_token, messages=[image_message, text_message])
 
     elif progress == 2:
@@ -319,7 +319,10 @@ def handle_message(event):
             state['progress'] = 3
             send_question_3(reply_token)
         else:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="錯誤答案！重來看看～"))
+            image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q2-A.jpg"
+            image_message = ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
+            text_message = TextSendMessage(text="答錯了！抵達萬花筒區域就可以找到正確解答!")
+             line_bot_api.reply_message(reply_token, messages=[image_message, text_message])
 
     elif progress == 3:
         pass
