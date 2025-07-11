@@ -310,7 +310,7 @@ def handle_message(event):
         else:
             image_url = "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-A.jpg"
             image_message = ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
-            text_message = TextSendMessage(text="再仔細看看!!!在第10-15頁之間!～")
+            text_message = TextSendMessage(text="再仔細看看!!!")
             line_bot_api.reply_message(reply_token, messages=[image_message, text_message])
 
     elif progress == 2:
@@ -435,7 +435,7 @@ def send_game_entry_menu(reply_token):
 # ★ 修改點 ★
 def get_question_1_flex():
     # 注意：請將圖片 URL 換成您自己的
-    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-V1.jpg", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡一：找找我在哪", "weight": "bold", "size": "lg"}, {"type": "text", "text": "找到這本神秘的大書，從左邊翻開數第8頁，數數看，圖片中有幾隻雞呢?", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary",  "color": "#4D96FF","action": {"type": "message", "label": "A：５隻雞", "text": "A"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "B：７隻雞", "text": "B"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "C：９隻雞", "text": "C"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "D：沒有雞", "text": "D"}}]}]}}
+    return {"type": "bubble", "hero": {"type": "image", "url": "https://raw.githubusercontent.com/chengzi08/tsse-linebot/main/Q1-V1.jpg", "size": "full", "aspectRatio": "1.51:1", "aspectMode": "fit"}, "body": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "關卡一：找找我在哪在第10-15頁之間!～", "weight": "bold", "size": "lg"}, {"type": "text", "text": "找到這本神秘的大書，從左邊翻開數第8頁，數數看，圖片中有幾隻雞呢?", "margin": "md", "wrap": True}, {"type": "separator", "margin": "lg"}, {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{"type": "button", "style": "primary",  "color": "#4D96FF","action": {"type": "message", "label": "A：５隻雞", "text": "A"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "B：７隻雞", "text": "B"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "C：９隻雞", "text": "C"}}, {"type": "button", "style": "primary", "color": "#4D96FF", "action": {"type": "message", "label": "D：沒有雞", "text": "D"}}]}]}}
 
 def send_question_2(reply_token):
     # 注意：請將圖片 URL 換成您自己的
