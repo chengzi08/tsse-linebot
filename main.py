@@ -232,11 +232,23 @@ def handle_message(event):
         # 如果玩家中途重來，清除舊狀態
         if user_id in user_states:
             del user_states[user_id]
-        # 設定一個初始狀態，代表還沒進入遊戲
-        user_states[user_id] = {'progress': 0}
-        # 呼叫新的選單函式
-        send_game_entry_menu(reply_token)
+        # 1. 立刻分配並取得玩家資訊
+        player_info = get_player_info(user_id) # 我們等下會修改 get_player_info 的邏輯
+        
+        if not player_info:
+            line_bot_api.reply_message(reply_token, TextSendMessage(text="抱歉，系統忙碌中，無法分配序號，請稍後再試。"))
+            return
+
+        # 2. 將預分配的資訊存入狀態
+        user_states[user_id] = {
+            'progress': -1, # 代表等待輸入姓名
+            'player_info': player_info # ★ 將序號資訊先存起來
+        }
+        
+        # 3. 要求使用者輸入姓名
+        line_bot_api.reply_message(reply_token, TextSendMessage(text="歡迎來到問答挑戰！\n請輸入您想在遊戲中使用的名稱："))
         return
+        
     if user_message == "排行榜":
             print("====== 觸發排行榜功能 ======")
             leaderboard_text = get_leaderboard()
@@ -285,10 +297,19 @@ def handle_message(event):
     # ★ 優化點 1: 輸入姓名後，合併回覆歡迎詞和第一題 (免費)
     if progress == -1:
         player_name = user_message
-        player_info = get_player_info(user_id)
-        if not player_info:
-            line_bot_api.reply_message(reply_token, TextSendMessage(text="抱歉，無法讀取玩家資料，請稍後再試。"))
-            return
+        # ★ 玩家資訊已在「開始遊戲」時取得，現在只需要更新狀態即可
+        state['name'] = player_name
+        state['start_time'] = datetime.datetime.now(pytz.timezone('Asia/Taipei'))
+        state['progress'] = 1 # 推進到第一題
+        
+        player_info = state['player_info'] # 從 state 中讀取預分配的資訊
+        
+        reply_text = f"你好，{player_name}！\n你的挑戰編號是 {player_info['id']}-{player_info['play_count']} 號。\n\n遊戲現在開始！"
+        welcome_message = TextSendMessage(text=reply_text)
+        q1_flex = FlexSendMessage(alt_text="第一題", contents=get_question_1_flex())
+        
+        line_bot_api.reply_message(reply_token, messages=[welcome_message, q1_flex])
+        return
 
         state.update({'name': player_name, 'player_info': player_info, 'start_time': datetime.datetime.now(pytz.timezone('Asia/Taipei')), 'progress': 1})
         
